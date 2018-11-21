@@ -2,27 +2,11 @@
 
 defined('_JEXEC') or die('Restricted access');
 
-/**
- *
- * @package VirtueMart
- * @subpackage payment
- * @copyright Copyright (C) 2015 Flow - All rights reserved.
- * @license http://www.gnu.org/copyleft/gpl.html GNU/GPL, see LICENSE.php
- * VirtueMart is free software. This version may have been modified pursuant
- * to the GNU General Public License, and as distributed it includes or
- * is derivative of works licensed under the GNU General Public License or
- * other free or open source software licenses.
- * See /administrator/components/com_virtuemart/COPYRIGHT.php for copyright notices and details.
- *
- * http://virtuemart.org
- */
 if (!class_exists('vmPSPlugin')) {
     require (JPATH_VM_PLUGINS . DS . 'vmpsplugin.php');
 }
 
-include_once 'libwebpay/webpay-config.php';
-include_once 'libwebpay/webpay-normal.php';
-
+include_once('library/TransbankSdkWebpay.php');
 
 class plgVmPaymentWebpay extends vmPSPlugin {
 
@@ -173,8 +157,7 @@ class plgVmPaymentWebpay extends vmPSPlugin {
         );
 
         try {
-            $conf = new WebPayConfig($config);
-            $webpay = new WebPayNormal($conf);
+            $webpay = new WebPayNormal($config);
             $result = $webpay->initTransaction($monto, $sessionId = "123abc", $ordenCompra, $config['URL_FINAL']);
         } catch (Exception $e) {
             $result["error"] = "Error conectando a Webpay";
@@ -415,8 +398,7 @@ class plgVmPaymentWebpay extends vmPSPlugin {
         $config = $session->get('webpay_config', "EMPTY");
 
         try {
-          $conf = new WebPayConfig($config);
-          $webpay = new WebPayNormal($conf);
+          $webpay = new WebPayNormal($config);
             $result = $webpay->getTransactionResult($token_ws);
         } catch (Exception $e) {
             $result["error"] = "Error conectando a Webpay";

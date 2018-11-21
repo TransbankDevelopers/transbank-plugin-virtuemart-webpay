@@ -1,6 +1,6 @@
 <?php
-require_once(dirname(__DIR__).'/LogHandler.php');
-require_once(__DIR__.'/ReportPdf.php');
+require_once('LogHandler.php');
+require_once('ReportPdf.php');
 
 class ReportPdfLog {
 
@@ -22,7 +22,6 @@ class ReportPdfLog {
             }
             $obj += array('logs' => array('log' => $html));
         }
-
         $report = new ReportPdf();
         $report->getReport(json_encode($obj));
     }
