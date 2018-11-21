@@ -9,11 +9,11 @@ then
 fi
 
 SRC_DIR="src"
-FILE1="/transbank_onepay/library/TransbankSdkWebpay.php"
+FILE1="/transbank_webpay/library/TransbankSdkWebpay.php"
 FILE2="transbank_webpay.xml"
 
-sed -i.bkp "s/PLUGIN_VERSION = '1.0.0';/PLUGIN_VERSION = '${TRAVIS_TAG}';/g" "$SRC_DIR/$FILE1"
-sed -i.bkp "s/<version>1.0.0/<version>${TRAVIS_TAG}/g" "$SRC_DIR/$FILE2"
+sed -i.bkp "s/PLUGIN_VERSION = '2.4.0';/PLUGIN_VERSION = '${TRAVIS_TAG}';/g" "$SRC_DIR/$FILE1"
+sed -i.bkp "s/<version>2.0.4/<version>${TRAVIS_TAG}/g" "$SRC_DIR/$FILE2"
 
 PLUGIN_FILE="plugin-transbank-webpay-virtuemart3-$TRAVIS_TAG.zip"
 

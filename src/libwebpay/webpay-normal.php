@@ -1,16 +1,8 @@
 <?php
-/**
- * @author     Allware Ltda. (http://www.allware.cl)
- * @copyright  2018 Transbank S.A. (http://www.transbank.cl)
- * @date       May 2018
- * @license    GNU LGPL
- * @version    2.0.4
- */
 require_once('soap/soap-wsse.php');
 require_once('soap/soap-validation.php');
 require_once('soap/soapclient.php');
-require_once('loghandler.php');
-
+require_once('LogHandler.php');
 
 class getTransactionResult
 {
@@ -201,7 +193,6 @@ class WebPayNormal
 		    if ($validationResult === TRUE){
 
 				$wsInitTransactionOutput = $initTransactionResponse->return;
-        $this->logger->writeLog('initTransaction',$wsTransactionDetail->buyOrder ,$wsTransactionDetail, $wsInitTransactionOutput, true);
 				return array (
 					"url" => $wsInitTransactionOutput->url,
 					"token_ws" => $wsInitTransactionOutput->token
@@ -211,12 +202,10 @@ class WebPayNormal
 				$error["error"] = "Error validando conexión a Webpay";
 				$error["detail"] = "No se puede validar la respuesta usando certificado " . WebPaySOAP::getConfig("WEBPAY_CERT");
 		    }
-        $this->logger->writeLog('initTransaction', $wsTransactionDetail->buyOrder ,$wsTransactionDetail, $error, false);
 		}catch(Exception $e){
 			$error["error"] = "Error conectando a Webpay";
 			$error["detail"] = $e->getMessage();
 		}
-    $this->logger->writeLog('initTransaction', $wsTransactionDetail->buyOrder ,$wsTransactionDetail, $error, false);
 		return $error;
 	}
 
@@ -235,24 +224,18 @@ class WebPayNormal
 
 				$resultCode = $result->detailOutput->responseCode;
 				if ( ($result->VCI == "TSY" || $result->VCI == "A"  || $result->VCI == "") && $resultCode == 0){
-            $this->logger->writeLog('getTransactionResult', $result->buyOrder, $token, $result->detailOutput, true);
-
 					return $result;
-
 				}
 				else{
 					$result->detailOutput->responseDescription = $this->_getReason($resultCode);
-          $this->logger->writeLog('getTransactionResult', $result->buyOrder, $token, $result->detailOutput, true);
 					return $result;
 				}
 
 			}
 			else{
-        $this->logger->writeLog('getTransactionResult', $result->buyOrder, $token,"Error eviando ACK a Webpay", false );
 				return array("error" => "Error eviando ACK a Webpay");
 			}
 		}
-    $this->logger->writeLog('getTransactionResult',$result->buyOrder, $token, "Error validando transacción en Webpay", false );
 		return array("error" => "Error validando transacción en Webpay");
 	}
 
@@ -265,7 +248,6 @@ class WebPayNormal
 		$xmlResponse = $this->soapClient->__getLastResponse();
 		$soapValidation = new SoapValidation($xmlResponse, $this->config->getParam("WEBPAY_CERT"));
 		$validationResult = $soapValidation->getValidationResult();
-    $this->logger->writeLog('acknowledgeTransaction', null, $token, $validationResult, true );
         return $validationResult === TRUE;
 	}
 

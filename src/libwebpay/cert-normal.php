@@ -1,13 +1,5 @@
 <?php
 
-/**
- * @author     Allware Ltda. (http://www.allware.cl)
- * @copyright  2015 Transbank S.A. (http://www.tranbank.cl)
- * @date       Jan 2015
- * @license    GNU LGPL
- * @version    2.0.4
- */
-
 /** Contiene datos de integración para realizar pruebas de conectividad */
 return $certificate = array(
 
@@ -87,6 +79,5 @@ JvD7YLhPvCYKry7N6x3l
 -----END CERTIFICATE-----",
 
     /** Codigo Comercio */
-    "commerce_code" => "597020000541",
-
+    "commerce_code" => "597020000541"
 );

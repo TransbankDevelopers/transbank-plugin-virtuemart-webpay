@@ -1,33 +1,29 @@
 <?php
-	require_once(dirname(__DIR__).'/loghandler.php');
-	require_once(__DIR__.'/reportPDF.php');
+require_once(dirname(__DIR__).'/LogHandler.php');
+require_once(__DIR__.'/ReportPdf.php');
 
-	class reportPDFlog{
-		private $ecommerce;
+class ReportPdfLog {
 
-		function reportPDFlog($ecommerce, $document){
-			$this->ecommerce = $ecommerce;
-			$this->document = $document;
-		}
-		function getReport($myJSON){
-			$log = new loghandler($this->ecommerce);
-			$json = json_decode($log->getLastLog(),true);
+    public function __construct($document){
+        $this->document = $document;
+    }
 
-			$obj = json_decode($myJSON,true);
+    function getReport($myJSON){
+        $loghandler = new LogHandler();
+        $json = json_decode($loghandler->getLastLog(),true);
+        $obj = json_decode($myJSON,true);
+        if (isset($json['log_content']) && $this->document == 'report'){
+            $html = str_replace("\r\n","<br>",$json['log_content']);
+            $html = str_replace("\n","<br>",$json['log_content']);
+            $text = explode ("<br>" ,$html);
+            $html='';
+            foreach ($text as $row){
+                $html .= '<b>'.substr($row,0,21).'</b> '.substr($row,22).'<br>';
+            }
+            $obj += array('logs' => array('log' => $html));
+        }
 
-			if (isset($json['log_content']) && $this->document == 'report'){
-			 $html = str_replace("\r\n","<br>",$json['log_content']);
-			 $html = str_replace("\n","<br>",$json['log_content']);
-				$text = explode ("<br>" ,$html);
-				$html='';
-				foreach ($text as $row){
-					$html .= '<b>'.substr($row,0,21).'</b> '.substr($row,22).'<br>';
-				}
-				$obj += array('logs' => array('log' => $html));
-			}
-			
-			$report = new reportPDF();
-			$report->getReport(json_encode($obj));
-		}
-
-	}
+        $report = new ReportPdf();
+        $report->getReport(json_encode($obj));
+    }
+}
