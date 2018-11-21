@@ -1,11 +1,11 @@
 <?php
-require_once('TCPDF/tcpdf.php');
+require_once('tcpdf/TCPDF/tcpdf.php');
 
 class ReportPdf {
 
     var $buffer;
 
-    function ReportPdf(){
+    public function __construct(){
         $this->buffer='<html>
         <head>
             <link href="'.__DIR__.'/css/ReportPdf.css" rel="stylesheet" type="text/css" media="all" />

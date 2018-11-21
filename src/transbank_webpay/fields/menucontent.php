@@ -5,9 +5,8 @@ if (!class_exists('vmPSPlugin')) {
     require(JPATH_VM_PLUGINS . DS . 'vmpsplugin.php');
 }
 
-//require_once __DIR__.'/../../transbank_webpay.php';
-require_once(__DIR__.'/../../libwebpay/HealthCheck.php');
-require_once(__DIR__.'/../../libwebpay/LogHandler.php');
+include_once(dirname( dirname(__FILE__) ) . '/library/HealthCheck.php');
+include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
 
     $db = JFactory::getDbo();
     $query = $db->getQuery(true);
@@ -32,7 +31,7 @@ require_once(__DIR__.'/../../libwebpay/LogHandler.php');
     $config = null;
 
     if (!isset($configBd['MODO']) or $configBd['MODO'] == "" or $configBd['MODO'] == null or $configBd['MODO'] == 'INTEGRACION') {
-        include_once(__DIR__.'/../../libwebpay/cert-normal.php');
+        include_once(dirname( dirname(__FILE__) ) . '/library/Certificates.php');
         $config = array(
             'MODO' => $certificate['environment'],
             'COMMERCE_CODE' => $certificate['commerce_code'],

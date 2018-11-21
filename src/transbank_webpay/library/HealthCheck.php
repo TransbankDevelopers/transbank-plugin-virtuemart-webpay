@@ -1,12 +1,4 @@
 <?php
-/**
- * @author     Allware Ltda. (http://www.allware.cl)
- * @copyright  2018 Transbank S.A. (http://www.transbank.cl)
- * @date       May 2018
- * @license    GNU LGPL
- * @version    2.0.4
- */
-
 
 require_once(__DIR__.'/soap/lib/nusoap.php');
 require_once(__DIR__.'/webpay-normal.php');
@@ -37,7 +29,7 @@ class HealthCheck
   var $webpayconfig;
   var $testurl;
 
-  function __construct($args)  {
+  public function __construct($args)  {
     $this->environment = $args['MODO'];
     $this->commerceCode = $args['COMMERCE_CODE'];
     $this->publicCert = $args['PUBLIC_CERT'];
