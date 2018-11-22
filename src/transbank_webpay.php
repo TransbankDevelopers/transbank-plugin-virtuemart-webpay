@@ -3,75 +3,79 @@
 defined('_JEXEC') or die('Restricted access');
 
 if (!class_exists('vmPSPlugin')) {
-    require (JPATH_VM_PLUGINS . DS . 'vmpsplugin.php');
+	require_once(VMPATH_PLUGINLIBS . DS . 'vmpsplugin.php');
 }
 
-include_once('library/TransbankSdkWebpay.php');
+if (!class_exists('ShopFunctions')) {
+    require_once(JPATH_VM_ADMINISTRATOR . DS . 'helpers' . DS . 'shopfunctions.php');
+}
 
-class plgVmPaymentWebpay extends vmPSPlugin {
+if (!class_exists('VirtueMartModelOrders')) {
+    require_once(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+}
 
-    public static $_this = false;
+defined ('DIR_SYSTEM') or define ('DIR_SYSTEM', VMPATH_PLUGINS . '/vmpayment/transbank_webpay/transbank_webpay/');
+
+if (!class_exists('TransbankSdkWebpay')) {
+    require_once(DIR_SYSTEM.'library/TransbankSdkWebpay.php');
+}
+
+if (!class_exists('LogHandler')) {
+    require_once(DIR_SYSTEM.'library/LogHandler.php');
+}
+
+/**
+ * Transbank Webpay Payment plugin implementation
+ * @autor vutreras (victor.utreras@continuum.cl)
+ */
+class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
 
     function __construct(&$subject, $config) {
-        parent::__construct($subject, $config);
 
-        $this->_loggable = TRUE;
-        $this->tableFields = array_keys($this->getTableSQLFields());
-        $this->_tablepkey = 'id';
+        parent::__construct ($subject, $config);
+		$this->tableFields = array_keys($this->getTableSQLFields());
+		$this->_tablepkey = 'id';
         $this->_tableId = 'id';
-        $varsToPush = $this->getVarsToPush();
 
-        $this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
-        $this->setCryptedFields(array('key'));
-    }
-
-    function plgVmDeclarePluginParamsPaymentVM3(&$data) {
-        return $this->declarePluginParams('payment', $data);
-    }
-
-    function plgVmGetTablePluginParams($psType, $name, $id, &$xParams, &$varsToPush) {
-        return $this->getTablePluginParams($psType, $name, $id, $xParams, $varsToPush);
-    }
-
-    public function getVmPluginCreateTableSQL() {
-        return $this->createTableSQL('Payment Webpay Table');
-    }
-
-    function getTableSQLFields() {
-        $SQLfields = array('id' => 'int(11) UNSIGNED NOT NULL AUTO_INCREMENT',
-            'virtuemart_order_id' => 'int(1) UNSIGNED',
-            'order_number' => ' char(64)',
-            'virtuemart_paymentmethod_id' => 'mediumint(1) UNSIGNED',
-            'payment_name' => 'varchar(5000)',
-            'payment_order_total' => 'decimal(15,5) NOT NULL DEFAULT \'0.00000\'',
-            'payment_currency' => 'char(3) ',
-            'cost_per_transaction' => 'decimal(10,2)',
-            'cost_percent_total' => 'decimal(10,2)',
-        );
-        return $SQLfields;
-    }
-
-    function getCosts(VirtueMartCart $cart, $method, $cart_prices) {
-
-        // TODO verificar si es necesario calcular costos adicionales. Otros plugins de Flow no lo hacen
-        return $cart_prices['salesPrice'];
+        if ($config['name'] == TransbankSdkWebpay::PLUGIN_CODE) {
+            $this->log = new LogHandler();
+            $varsToPush = $this->getVarsToPush();
+            $this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
+            $this->setCryptedFields(array('key'));
+        }
     }
 
     /**
-     * Reimplementation of vmPaymentPlugin::checkPaymentConditions()
-     * @return bool true if conditions verified
+     * Create the table for this plugin if it does not yet exist.
+     *
+     * @return bool
+     * @Override
      */
-    function checkConditions($cart, $method, $cart_prices) {
-        $this->convert($method);
-        $amount = $cart_prices['salesPrice'];
-        $amount_cond = ($amount >= $method->min_amount && $amount <= $method->max_amount || ($amount >= $method->min_amount && empty($method->max_amount)));
-
-        return $amount_cond;
+    function getVmPluginCreateTableSQL() {
+        return $this->createTableSQL('Payment Transbank_Webpay Table');
     }
 
-    function convert($method) {
-        $method->min_amount = (float)$method->min_amount;
-        $method->max_amount = (float)$method->max_amount;
+    /**
+	 * Fields to create the payment table
+     *
+	 * @return string SQL fields
+     * @Override
+	 */
+    function getTableSQLFields() {
+        $SQLfields = array(
+            'id' => 'int(1) UNSIGNED NOT NULL AUTO_INCREMENT',
+			'virtuemart_order_id' => 'int(1) UNSIGNED',
+            'order_number' => 'char(64)',
+            'order_pass' => 'char(64)',
+            'order_status' => 'varchar(10)',
+			'virtuemart_paymentmethod_id' => 'mediumint(1) UNSIGNED',
+            'payment_name' => 'varchar(20)',
+            'payment_currency' => 'smallint(1)',
+			'payment_order_total' => 'decimal(15,5) NOT NULL',
+            'tax_id' => 'smallint(1)',
+            'transbank_webpay_metadata' => 'varchar(2000)'
+        );
+        return $SQLfields;
     }
 
     /**
@@ -80,30 +84,27 @@ class plgVmPaymentWebpay extends vmPSPlugin {
     function plgVmConfirmedOrder($cart, $order) {
 
         //Se inicializa el flag de anulacion
-        $session = & JFactory::getSession();
+        $session = JFactory::getSession();
         $session->set('webpay_flag_anulacion', 'SI');
 
-        if (!($method = $this->getVmPluginMethod($order['details']['BT']->virtuemart_paymentmethod_id))) {
+        $paymentMethodId = $order['details']['BT']->virtuemart_paymentmethod_id;
+
+        if (!($method = $this->getVmPluginMethod($paymentMethodId))) {
             return null; // Another method was selected, do nothing
         }
         if (!$this->selectedThisElement($method->payment_element)) {
             return false;
         }
 
-        $session = JFactory::getSession();
-        $return_context = $session->getId();
-
-        $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- order number: ' . $order['details']['BT']->order_number, 'message');
-
-        $vendorModel = VmModel::getModel('vendor');
-        $vendorName = $vendorModel->getVendorName($method->virtuemart_vendor_id);
-
-        $ordenCompra = $order['details']['BT']->order_number;
-        $monto = $order['details']['BT']->order_total;
+        $orderId = $order['details']['BT']->virtuemart_order_id;
+        $orderNumber = $order['details']['BT']->order_number;
+        $amount = $order['details']['BT']->order_total;
+        $sessionId = (string)intval(microtime(true));
 
         // se guarda la orden de compra y el amount en la sesion
-        $session->set('webpay_order_number', $ordenCompra);
-        $session->set('webpay_monto_compra', $monto);
+        $session->set('webpay_order_id', $orderId);
+        $session->set('webpay_order_number', $orderNumber);
+        $session->set('webpay_order_amount', $amount);
 
         $ambiente = $method->ambiente;
         $secret_key = $method->key_secret;
@@ -111,144 +112,102 @@ class plgVmPaymentWebpay extends vmPSPlugin {
         $cert_transbank = $method->cert_transbank;
         $id_comercio = $method->id_comercio;
 
-        $session->set('webpay_status_success', $method->status_success);
-        $session->set('webpay_status_canceled', $method->status_canceled);
+        $pluginResponseUrl = 'index.php?option=com_virtuemart&view=pluginresponse';
 
-        $url_base = JROUTE::_(JURI::root() .
-                        'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code={status}&on=' .
-                        $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
-                        '&transaction_id=' . $order['details']['BT']->virtuemart_order_id);
+        $baseUrl = JURI::root() . $pluginResponseUrl . '&task=pluginresponsereceived' .
+                                '&status_code={status}&on=' . $orderNumber.
+                                '&pm=' . $paymentMethodId .
+                                '&transaction_id=' . $orderId;
 
-        $url_exito = str_replace('{status}', 'ok', $url_base);
-        $url_fracaso = str_replace('{status}', 'cancel', $url_base);
-        $url_confirmacion = JURI::root() .
-                'index.php?option=com_virtuemart&format=raw&view=pluginresponse&task=pluginnotification' .
-                '&tmpl=component&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id;
+        $finalUrl = str_replace('{status}', 'ok', $baseUrl);
+        $errorurl = str_replace('{status}', 'cancel', $baseUrl);
+        $returnUrl = JURI::root() . $pluginResponseUrl . '&format=raw&task=pluginnotification' .
+                                    '&tmpl=component&pm=' . $paymentMethodId;
 
-        $session->set('webpay_url_fracaso', $url_fracaso);
+        $session->set('webpay_error_url', $errorurl);
 
-        // Set the language code
-        $lang = JFactory::getLanguage();
-        $lang->load('plg_vmpayment_' . $this->_name, JPATH_ADMINISTRATOR);
+        /*
+        $order = array();
+        $order['order_number'] = $orderNumber;
+        $order['order_status'] = $this->getConfig('status_wait_payment');
+        $order['virtuemart_order_id'] = $orderId;
+        $order['virtuemart_paymentmethod_id'] = $paymentMethodId;
+        $order['customer_notified'] = 1;
+        $order['comments'] = "Esperando el pago";
+        $order['payment_name'] = TransbankSdkWebpay::PLUGIN_CODE;
+        //$this->storePSPluginInternalData($order);
+        */
 
-        $tag = substr($lang->get('tag'), 0, 2);
-        //$language = in_array($tag, $api->getSupportedLanguages()) ? $tag : ($method->language ? $method->language : 'en');
-        // Prepare data that should be stored in the database
-        $dbValues['order_number'] = $order['details']['BT']->order_number;
-        $dbValues['payment_name'] = $this->renderPluginName($method, $order);
-        $dbValues['virtuemart_paymentmethod_id'] = $cart->virtuemart_paymentmethod_id;
-        $dbValues[$this->_name . '_custom'] = $return_context;
-        $this->storePSPluginInternalData($dbValues);
-
-        $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- payment data saved to table ' . $this->_tablename, 'message');
-        $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- user redirected to ' . $this->_name, 'message');
-
-
-        //config lo llenan con los datos almacenados en el e-commerce.
         $config = array(
             "MODO" => $ambiente,
             "PRIVATE_KEY" => $secret_key,
             "PUBLIC_CERT" => $cert_publico,
             "WEBPAY_CERT" => $cert_transbank,
             "COMMERCE_CODE" => $id_comercio,
-            "URL_FINAL" => $url_exito,
-            "URL_RETURN" => $url_confirmacion,
+            "URL_FINAL" => $finalUrl,
+            "URL_RETURN" => $returnUrl,
             "ECOMMERCE" => 'virtuemart'
         );
 
-        try {
-            $webpay = new WebPayNormal($config);
-            $result = $webpay->initTransaction($monto, $sessionId = "123abc", $ordenCompra, $config['URL_FINAL']);
-        } catch (Exception $e) {
-            $result["error"] = "Error conectando a Webpay";
-            $result["detail"] = $e->getMessage();
-        }
-        $url_token = '0';
-        $token_webpay = '0';
+        $transbankSdkWebpay = new TransbankSdkWebpay($config);
+        $result = $transbankSdkWebpay->initTransaction($amount, $sessionId, $orderNumber, 'xx'.$returnUrl, 'xx'.$finalUrl);
 
+        $this->log->logInfo('result: ' . json_encode($result));
 
         if (isset($result["token_ws"])) {
 
-            $url_token = $result["url"];
-            $token_webpay = $result["token_ws"];
+            $url = $result["url"];
+            $tokenWs = $result["token_ws"];
 
-            $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- payment data saved to table ' . $this->_tablename, 'message');
-            $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- user redirected to ' . $this->_name, 'message');
-            $session = & JFactory::getSession();
-            $session->set('webpay_url_token', $url_token);
-            $session->set('webpay_token', $token_webpay);
+            $session->set('webpay_payment_ok', 'WAITING');
+            $session->set('webpay_url', $url);
+            $session->set('webpay_token_ws', $tokenWs);
             $session->set('webpay_config', $config);
 
-            // echo the redirect form
-            echo $this->getConfirmFormHtml($url_token, $token_webpay);
+            $this->toRedirect($url, array('token_ws' => $tokenWs));
+
         } else {
 
-           //echo "<br/>Ocurrio un error al intentar conectar con WebPay. Por favor intenta mas tarde.<br/>";
+            $session->set('webpay_payment_ok', 'FAIL');
+            $session->set('webpay_voucher_txresptexto', $result['error'] . ', ' . $result['detail']);
+            $session->set('webpay_voucher_ordencompra', $orderNumber);
+            $session->set('webpay_voucher_txdate_fecha', date('d-m-Y'));
+            $session->set('webpay_voucher_txdate_hora', date('H:i:s'));
 
-            JFactory::getApplication()->enqueueMessage('Ocurrio un error al intentar conectar con WebPay.', 'error');
-
-            $allDone =& JFactory::getApplication();
-            $allDone->redirect($url_fracaso);
-
-            //echo $this->data["error_detail"] = $result["detail"];
-            //var_dump($result);
+            $app = JFactory::getApplication();
+            $app->enqueueMessage('Ocurrio un error al intentar conectar con WebPay.', 'error');
+            $app->redirect($errorurl);
         }
 
-
-        $cart->_confirmDone = false;
+        /*$cart->_confirmDone = false;
         $cart->_dataValidated = false;
         $cart->setCartIntoSession();
-        die(); // not save order, not send mail, do redirect
-
+        */
+        die();
     }
 
-    function getConfirmFormHtml($url, $token) {
-
-        $form .= '<html>';
-
-        $form .= '<head>';
-        $form .= '  <title>Redirection</title>';
-        $form .=  '</head>';
-        $form .=  '<body>';
-        $form .=  'Redireccionando a webpay.cl...';
-
-        $form .= '<form action="' . $url . '" method="POST">' . "\n";
-        $form .= '<input type="hidden" name="token_ws" value="' . $token . '" />' . "\n";
-        $form .= '<script type="text/javascript">document.forms[0].submit();</script>';
-        $form .= '</form>' . "\n";
-        $form .= '</body></html>' . "\n";
-
-
-        return $form;
-    }
-
-    function genericRedirect($url) {
-
-        $form .= '<html>';
-
-        $form .= '<head>';
-        $form .= '  <title>Redirection</title>';
-        $form .=  '</head>';
-        $form .=  '<body>';
-        $form .= '<form action="' . $url . '" method="POST">' . "\n";
-        $form .= '<script type="text/javascript">document.forms[0].submit();</script>';
-        $form .= '</form>' . "\n";
-        $form .= '</body></html>' . "\n";
-
-        return $form;
+    private function toRedirect($url, $data) {
+        echo "<form action='$url' method='POST' name='webpayForm'>";
+        foreach ($data as $name => $value) {
+            echo "<input type='hidden' name='".htmlentities($name)."' value='".htmlentities($value)."'>";
+        }
+        echo "</form>";
+        echo "<script language='JavaScript'>"
+                ."document.webpayForm.submit();"
+                ."</script>";
+        return true;
     }
 
     /**
      *  Process final response, show message on result.  Empty cart if payment went ok
+     *  @Override
      */
     function plgVmOnPaymentResponseReceived(&$html) {
 
-        // the payment itself should send the parameter needed.
-        $virtuemart_paymentmethod_id = JRequest::getInt('pm', 0);
-        $session = & JFactory::getSession();
+        $paymentmethodId = JRequest::getInt('pm', 0);
+        $session = JFactory::getSession();
 
-        $vendorId = 0;
-        if (!($method = $this->getVmPluginMethod($virtuemart_paymentmethod_id))) {
+        if (!($method = $this->getVmPluginMethod($paymentmethodId))) {
             return null; // Another method was selected, do nothing
         }
 
@@ -256,116 +215,62 @@ class plgVmPaymentWebpay extends vmPSPlugin {
             return false;
         }
 
-        $this->_debug = true;
-        $this->logInfo('plgVmOnPaymentResponseReceived -- user returned back from ' . $this->_name, 'message');
-
-        $resp = JRequest::get('request');
-
-        // Retrieve order info from database
-        if (!class_exists('VirtueMartModelOrders')) {
-            require (JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
-        }
-
-        $order_number = $session->get('webpay_order_number', "");
-        $virtuemart_order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
-
-        // Order not found
-        if (!$virtuemart_order_id) {
-            vmdebug('plgVmOnPaymentResponseReceived ' . $this->_name, $resp, $resp['transaction_id']);
-            $this->logInfo('plgVmOnPaymentResponseReceived -- payment check attempted on non existing order : ' . $resp['transaction_id'], 'error');
-            return null;
-        }
-
-
-        $this->order = VirtueMartModelOrders::getOrder($virtuemart_order_id);
-        $order_status_code = $order->items->order_status;
+        $request = JRequest::get('request');
+        $orderId = $session->get('webpay_order_id', "");
 
         if($session->get('webpay_flag_anulacion', "NO")){
-            if ($resp['status_code'] == 'ok') {
-                $html = $this->_getHtmlPaymentResponse('La orden se ha creado exitosamente', true, $resp['transaction_id']);
-                $html .= $this->_getHtmlPaymentDataResponse($resp);
-
+            if ($request['status_code'] == 'ok') {
+                $html = $this->getHtmlPaymentResponse('La orden se ha creado exitosamente', true);
+                $html .= $this->_getHtmlPaymentDataResponse($request);
                 $this->emptyCart(null);
-
             } else {
-                $html = $this->_getHtmlPaymentResponse('La compra ha sido rechazada.', false);
-                $html .= $this->_getHtmlPaymentDataRejectResponse($resp);
-                $new_status = $method->status_canceled;
+                $html = $this->getHtmlPaymentResponse('La compra ha sido rechazada.', false);
+                $html .= $this->_getHtmlPaymentDataRejectResponse($request);
             }
-        }else{ //compra anulada por usuario
-                $session->set('webpay_flag_anulacion', 'SI'); //se resetea flag
+        } else { //compra anulada por usuario
+            $session->set('webpay_flag_anulacion', 'SI'); //se resetea flag
 
-                $modelOrder = VmModel::getModel('orders');
-                $order['order_status'] = $session->get('webpay_status_canceled', "");
-                $order['virtuemart_order_id'] = $virtuemart_order_id;
-                $order['customer_notified'] = 1;
-                $order['comments'] = "Anulado por el usuario";
-                vmdebug($this->_name . ' - PaymentNotification', $order);
+            $order = array();
+            $order['order_status'] = $this->getConfig('status_canceled');
+            $order['virtuemart_order_id'] = $orderId;
+            $order['customer_notified'] = 1;
+            $order['comments'] = "Anulado por el usuario";
 
-                $modelOrder->updateStatusForOneOrder($virtuemart_order_id, $order, true);
-                $html = $this->_getHtmlPaymentResponse('La compra ha sido anulada por el usuario.', true, $resp['transaction_id']);
+            $modelOrder = VmModel::getModel('orders');
+            $modelOrder->updateStatusForOneOrder($orderId, $order, true);
+
+            $html = $this->getHtmlPaymentResponse('La compra ha sido anulada por el usuario.', true);
         }
         return null;
     }
 
     /**
      * Process a payment cancellation
+     * @Override
      */
     function plgVmOnUserPaymentCancel() {
 
-        if (!class_exists('VirtueMartModelOrders')) {
-            require (JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
-        }
-
-        $session = & JFactory::getSession();
-        $order_number = $session->get('webpay_order_number', "");
-
-
-        if (!$order_number) {
-            return false;
-        }
-        if (!$virtuemart_order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number)) {
-            return null;
-        }
-        if (!($paymentTable = $this->getDataByOrderId($virtuemart_order_id))) {
-            return null;
-        }
-
         $session = JFactory::getSession();
-        $return_context = $session->getId();
-        $field = $this->_name . '_custom';
+        $orderId = $session->get('webpay_order_id', "");
 
-        $this->handlePaymentUserCancel($virtuemart_order_id);
+        if (!($paymentTable = $this->getDataByOrderId($orderId))) {
+            return null;
+        }
+
+        $order = array();
+        $order['order_status'] = $this->getConfig('status_canceled');
+        $order['virtuemart_order_id'] = $orderId;
+        $order['customer_notified'] = 0;
+        $order['comments'] = vmText::_('Rechazado desde Webpay');
+
+        $modelOrder = VmModel::getModel ('orders');
+        $modelOrder->updateStatusForOneOrder($orderId, $order, true);
+
+        $errorurl = $session->get('webpay_error_url', "");
+        $app = JFactory::getApplication();
+        $app->redirect($errorurl);
 
         return true;
-    }
-
-    function handlePaymentUserCancel ($virtuemart_order_id) {
-
-        $session = & JFactory::getSession();
-
-        if ($virtuemart_order_id) {
-            // set the order to cancel , to handle the stock correctly
-            if (!class_exists ('VirtueMartModelOrders')) {
-                    require(VMPATH_ADMIN . DS . 'models' . DS . 'orders.php');
-            }
-
-            $modelOrder = VmModel::getModel ('orders');
-
-            $order['order_status'] = $session->get('webpay_status_canceled', "");
-            $order['virtuemart_order_id'] = $virtuemart_order_id;
-            $order['customer_notified'] = 0;
-            $order['comments'] = vmText::_ ('Rechazado desde Webpay');
-            vmdebug($this->_name . ' - PaymentNotification', $order);
-
-
-            $modelOrder->updateStatusForOneOrder($virtuemart_order_id, $order, true);
-
-            $session = & JFactory::getSession();
-            $url_fracaso = $session->get('webpay_url_fracaso', "");
-
-            echo $this->genericRedirect($url_fracaso);
-        }
     }
 
     /**
@@ -394,7 +299,7 @@ class plgVmPaymentWebpay extends vmPSPlugin {
         $error_transbank = "NO";
 
         $session = & JFactory::getSession();
-        $token_ws = $session->get('webpay_token', "EMPTY");
+        $token_ws = $session->get('webpay_token_ws', "EMPTY");
         $config = $session->get('webpay_config', "EMPTY");
 
         try {
@@ -436,7 +341,7 @@ class plgVmPaymentWebpay extends vmPSPlugin {
         }
 
         $order_total = floor($order['details']['BT']->order_total);
-        $amount = $session->get('webpay_monto_compra', "");
+        $amount = $session->get('webpay_order_amount', "");
         $amount_floor = floor($amount);
 
 
@@ -450,9 +355,8 @@ class plgVmPaymentWebpay extends vmPSPlugin {
             // save order data
             $session->set('webpay_flag_anulacion', 'NO');
 
-
             $modelOrder = VmModel::getModel('orders');
-            $order['order_status'] = $session->get('webpay_status_success', "");
+            $order['order_status'] = $this->getConfig('status_success');
             $order['virtuemart_order_id'] = $virtuemart_order_id;
             $order['customer_notified'] = 1;
             $order['comments'] = "Confirmado desde Webpay";
@@ -534,9 +438,8 @@ class plgVmPaymentWebpay extends vmPSPlugin {
         $session->set('webpay_voucher_nrocuotas', $result->detailOutput->sharesNumber);
     }
 
-    function _getHtmlPaymentResponse($msg, $is_success = true, $order_id = null, $amount = null) {
-
-        if (!$is_success) {
+    private function getHtmlPaymentResponse($msg, $success = true) {
+        if (!$success) {
             return '<p style="text-align: center;">' . JText::_($msg) . '</p>';
         } else {
             $html = '<table>' . "\n";
@@ -573,34 +476,27 @@ class plgVmPaymentWebpay extends vmPSPlugin {
     }
 
     function _getHtmlPaymentDataRejectResponse($resp) {
-
+        $session = JFactory::getSession();
         $html = '<div class="product vm-col">';
-        //$html = '<div class="product vm-col">';
         $html .= '<table>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> DETALLES DE RECHAZO:  </td></tr></thead><br>';
-        $html .= '</table>' . "\n";
-        $html .= '<table>' . "\n";
-
-        $session = & JFactory::getSession();
-
+        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> DETALLES DE RECHAZO:</td></tr></thead><br>';
+        $html .= '</table>';
+        $html .= '<table>';
         $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Respuesta de la Transacci&oacute;n : ' . $session->get('webpay_voucher_txresptexto', "") . '</td></tr></thead><br>';
         $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Orden de Compra : ' . $session->get('webpay_voucher_ordencompra', "") . '</td></tr></thead>';
         $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Fecha de Transacci&oacute;n : ' . $session->get('webpay_voucher_txdate_fecha', "") . '</td></tr></thead>';
         $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Hora de Transacci&oacute;n : ' . $session->get('webpay_voucher_txdate_hora', "") . '</td></tr></thead>';
-        $html .= '</table>' . "\n";
-        $html .= '</div>' . "\n";
+        $html .= '</table>';
+        $html .= '</div>';
         return $html;
     }
 
     function savePaymentData($virtuemart_order_id, $resp) {
-
-        vmdebug($this->_name . 'response_raw', json_encode($resp));
         $response[$this->_tablepkey] = $this->_getTablepkeyValue($virtuemart_order_id);
         $response['virtuemart_order_id'] = $virtuemart_order_id;
         $response[$this->_name . '_response_payment_date'] = gmdate('Y-m-d H:i:s', time());
         $response[$this->_name . '_response_payment_status'] = $resp['status_code'];
         $response[$this->_name . '_response_trans_id'] = $resp['transaction_id'];
-        ;
         $this->storePSPluginInternalData($response, $this->_tablepkey, true);
     }
 
@@ -616,7 +512,186 @@ class plgVmPaymentWebpay extends vmPSPlugin {
         return $pkey;
     }
 
-    function emptyCart($session_id = null, $order_number = null) {
+    /**
+     * return true for show the Transbank Onepay payment method in cart screen
+     *
+     * @param $cart
+     * @param $method
+     * @param $cart_prices
+     * @Override
+     */
+    protected function checkConditions($cart, $method, $cart_prices) {
+        //enable transbank webpay only for Chile and salesPrice > 0
+        $salesPrice = round($cart_prices['salesPrice']);
+        if ($salesPrice > 0 && $cart->pricesCurrency == $method->currency_id) {
+            $currency = ShopFunctions::getCurrencyByID($cart->pricesCurrency, 'currency_code_3');
+            if ($currency == 'CLP') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+	 * Create the table for this plugin if it does not yet exist.
+	 * This functions checks if the called plugin is active one.
+	 * When yes it is calling the standard method to create the tables
+     *
+     * @param $jplugin_id
+	 * @Override
+	 */
+	function plgVmOnStoreInstallPaymentPluginTable($jplugin_id) {
+		return $this->onStoreInstallPluginTable($jplugin_id);
+	}
+
+    /**
+	 * This event is fired after the payment method has been selected. It can be used to store
+	 * additional payment info in the cart.
+     *
+	 * @param VirtueMartCart $cart: the actual cart
+     * @param $msg
+	 * @return null if the payment was not selected, true if the data is valid, error message if the data is not valid
+	 * @Override
+	 */
+	public function plgVmOnSelectCheckPayment(VirtueMartCart $cart,  &$msg) {
+		return $this->OnSelectCheck($cart);
+	}
+
+    /**
+	 * This event is fired to display the pluginmethods in the cart (edit shipment/payment) for exampel
+	 *
+	 * @param object  $cart Cart object
+	 * @param integer $selected ID of the method selected
+	 * @return boolean True on success, false on failures, null when this plugin was not selected.
+	 * On errors, JError::raiseWarning (or JError::raiseError) must be used to set a message.
+	 * @Override
+	 */
+	public function plgVmDisplayListFEPayment(VirtueMartCart $cart, $selected = 0, &$htmlIn) {
+		return $this->displayListFE($cart, $selected, $htmlIn);
+	}
+
+    /*
+     * Calculate the price (value, tax_id) of the selected method
+     * It is called by the calculator
+     * This function does NOT to be reimplemented. If not reimplemented, then the default values from this function are taken.
+     *
+     * @param VirtueMartCart $cart
+     * @param array          $cart_prices
+     * @param                $cart_prices_name
+     *
+     * @return
+     * @Override
+     */
+	public function plgVmonSelectedCalculatePricePayment(VirtueMartCart $cart, array &$cart_prices, &$cart_prices_name) {
+		return $this->onSelectedCalculatePrice($cart, $cart_prices, $cart_prices_name);
+	}
+
+    /**
+	 * @param $virtuemart_paymentmethod_id
+	 * @param $paymentCurrencyId
+	 * @return bool|null
+     * @Override
+	 */
+    function plgVmgetPaymentCurrency($virtuemart_paymentmethod_id, &$paymentCurrencyId) {
+		if (!($method = $this->getVmPluginMethod($virtuemart_paymentmethod_id))) {
+			return NULL;
+		} // Another method was selected, do nothing
+
+		if (!$this->selectedThisElement($method->payment_element)) {
+			return FALSE;
+		}
+
+		$this->getPaymentCurrency($method);
+		$paymentCurrencyId = $method->payment_currency;
+    }
+
+    /**
+	 * Checks how many plugins are available. If only one, the user will not have the choice. Enter edit_xxx page
+	 * The plugin must check first if it is the correct type
+	 *
+	 * @param VirtueMartCart cart: the cart object
+	 * @return null if no plugin was found, 0 if more then one plugin was found,  virtuemart_xxx_id if only one plugin is found
+	 * @Override
+	 */
+	function plgVmOnCheckAutomaticSelectedPayment(VirtueMartCart $cart, array $cart_prices = array(), &$paymentCounter) {
+		return $this->onCheckAutomaticSelected($cart, $cart_prices, $paymentCounter);
+    }
+
+    /**
+	 * This method is fired when showing the order details in the frontend.
+	 * It displays the method-specific data.
+	 *
+	 * @param integer $order_id The order ID
+	 * @return mixed Null for methods that aren't active, text (HTML) otherwise
+	 * @Override
+	 */
+	public function plgVmOnShowOrderFEPayment($virtuemart_order_id, $virtuemart_paymentmethod_id, &$payment_name) {
+		$this->onShowOrderFE($virtuemart_order_id, $virtuemart_paymentmethod_id, $payment_name);
+	}
+
+    /**
+	 * This method is fired when showing when priting an Order
+	 * It displays the the payment method-specific data.
+	 *
+	 * @param integer $_virtuemart_order_id The order ID
+	 * @param integer $method_id  method used for this order
+	 * @return mixed Null when for payment methods that were not selected, text (HTML) otherwise
+	 * @Override
+	 */
+	function plgVmonShowOrderPrintPayment($order_number, $method_id) {
+		return $this->onShowOrderPrint($order_number, $method_id);
+    }
+
+    /**
+	 * @param $data
+	 * @return bool
+     * @Override
+	 */
+    function plgVmDeclarePluginParamsPaymentVM3(&$data) {
+        $ret = $this->declarePluginParams('payment', $data);
+        if ($ret == 1) {
+            $this->logInfo('Configuracion guardada correctamente');
+        }
+        return $ret;
+    }
+
+    /**
+	 * @param $name
+	 * @param $id
+	 * @param $table
+	 * @return bool
+     * @Override
+	 */
+	function plgVmSetOnTablePluginParamsPayment($name, $id, &$table) {
+		return $this->setOnTablePluginParams($name, $id, $table);
+    }
+
+    //Helpers
+
+    /**
+     * return the current cart
+     */
+    private function getCurrentCart() {
+        if (!class_exists('VirtueMartCart')) {
+            require(JPATH_VM_SITE . DS . 'helpers' . DS . 'cart.php');
+        }
+        return VirtueMartCart::getCart();
+    }
+
+    /**
+     * return the model orders
+     */
+    private function getModelOrder() {
+        if (!class_exists('VirtueMartModelOrders')) {
+            require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+        }
+        return new VirtueMartModelOrders();
+    }
+
+    /**
+     * empty cart
+     */
+    public function emptyCart($session_id = null, $order_number = null) {
         if ($session_id != null) {
             $session = JFactory::getSession();
             $session->close();
@@ -636,227 +711,28 @@ class plgVmPaymentWebpay extends vmPSPlugin {
     }
 
     /**
-     * Create the table for this plugin if it does not yet exist.
-     * This functions checks if the called plugin is active one.
-     * When yes it is calling the standard method to create the tables
-     * @author Val������rie Isaksen
-     *
+     * return method payment from virtuemart system by id
      */
-    function plgVmOnStoreInstallPaymentPluginTable($jplugin_id) {
-
-        return $this->onStoreInstallPluginTable($jplugin_id);
-    }
-
-    /**
-     * This event is fired after the payment method has been
-     * selected. It can be used to store additional payment info in
-     * the cart.
-     *
-     * @author Max Milbers
-     * @author Val������rie isaksen
-     *
-     * @param VirtueMartCart $cart: the actual cart
-     * @return null if the payment was not selected, true if the data is valid, error message if the data is not vlaid
-     *
-     */
-    public function plgVmOnSelectCheckPayment(VirtueMartCart $cart) {
-        return $this->OnSelectCheck($cart);
-    }
-
-    /**
-     * plgVmDisplayListFEPayment
-     * This event is fired to display the pluginmethods in the cart (edit shipment/payment) for exampel
-     *
-     * @param object $cart Cart object
-     * @param integer $selected ID of the method selected
-     * @return boolean True on succes, false on failures, null when this plugin was not selected.
-     * On errors, JError::raiseWarning (or JError::raiseError) must be used to set a message.
-     *
-     * @author Valerie Isaksen
-     * @author Max Milbers
-     */
-    public function plgVmDisplayListFEPayment(VirtueMartCart $cart, $selected = 0, &$htmlIn) {
-        return $this->displayListFE($cart, $selected, $htmlIn);
-    }
-
-    /*
-     * plgVmonSelectedCalculatePricePayment
-     * Calculate the price (value, tax_id) of the selected method
-     * It is called by the calculator
-     * This function does NOT to be reimplemented. If not reimplemented, then the default values from this function are taken.
-     * @author Valerie Isaksen
-     * @cart: VirtueMartCart the current cart
-     * @cart_prices: array the new cart prices
-     * @return null if the method was not selected, false if the shiiping rate is not valid any more, true otherwise
-     *
-     *
-     */
-
-    public function plgVmonSelectedCalculatePricePayment(VirtueMartCart $cart, array & $cart_prices, &$cart_prices_name) {
-        return $this->onSelectedCalculatePrice($cart, $cart_prices, $cart_prices_name);
-    }
-
-    /**
-     * plgVmOnCheckAutomaticSelectedPayment
-     * Checks how many plugins are available. If only one, the user will not have the choice. Enter edit_xxx page
-     * The plugin must check first if it is the correct type
-     * @author Valerie Isaksen
-     * @param VirtueMartCart cart: the cart object
-     * @return null if no plugin was found, 0 if more then one plugin was found,  virtuemart_xxx_id if only one plugin is found
-     *
-     */
-    function plgVmOnCheckAutomaticSelectedPayment(VirtueMartCart $cart, array $cart_prices = array(), &$paymentCounter) {
-        return $this->onCheckAutomaticSelected($cart, $cart_prices, $paymentCounter);
-    }
-
-    /**
-     * This method is fired when showing the order details in the frontend.
-     * It displays the method-specific data.
-     *
-     * @param integer $order_id The order ID
-     * @return mixed Null for methods that aren't active, text (HTML) otherwise
-     * @author Max Milbers
-     * @author Valerie Isaksen
-     */
-    public function plgVmOnShowOrderFEPayment($virtuemart_order_id, $virtuemart_paymentmethod_id, &$payment_name) {
-        $this->onShowOrderFE($virtuemart_order_id, $virtuemart_paymentmethod_id, $payment_name);
-    }
-
-    /**
-     * This method is fired when showing when priting an Order
-     * It displays the the payment method-specific data.
-     *
-     * @param integer $_virtuemart_order_id The order ID
-     * @param integer $method_id  method used for this order
-     * @return mixed Null when for payment methods that were not selected, text (HTML) otherwise
-     * @author Valerie Isaksen
-     */
-    function plgVmonShowOrderPrintPayment($order_number, $method_id) {
-        return $this->onShowOrderPrint($order_number, $method_id);
-    }
-
-    /**
-     * This method is fired when showing the order details in the frontend, for every orderline.
-     * It can be used to display line specific package codes, e.g. with a link to external tracking and
-     * tracing systems
-     *
-     * @param integer $_orderId The order ID
-     * @param integer $_lineId
-     * @return mixed Null for method that aren't active, text (HTML) otherwise
-
-     * public function plgVmOnShowOrderLineFE(  $_orderId, $_lineId) {
-     * return null;
-     * }
-     */
-    function plgVmDeclarePluginParamsPayment($name, $id, &$data) {
-        return $this->declarePluginParams('payment', $name, $id, $data);
-    }
-
-    function plgVmSetOnTablePluginParamsPayment($name, $id, &$table) {
-        return $this->setOnTablePluginParams($name, $id, $table);
-    }
-
-}
-
-if (!function_exists('http_response_code')) {
-
-    function http_response_code($code = NULL) {
-
-        if ($code !== NULL) {
-
-            switch ($code) {
-                case 100: $text = 'Continue';
-                    break;
-                case 101: $text = 'Switching Protocols';
-                    break;
-                case 200: $text = 'OK';
-                    break;
-                case 201: $text = 'Created';
-                    break;
-                case 202: $text = 'Accepted';
-                    break;
-                case 203: $text = 'Non-Authoritative Information';
-                    break;
-                case 204: $text = 'No Content';
-                    break;
-                case 205: $text = 'Reset Content';
-                    break;
-                case 206: $text = 'Partial Content';
-                    break;
-                case 300: $text = 'Multiple Choices';
-                    break;
-                case 301: $text = 'Moved Permanently';
-                    break;
-                case 302: $text = 'Moved Temporarily';
-                    break;
-                case 303: $text = 'See Other';
-                    break;
-                case 304: $text = 'Not Modified';
-                    break;
-                case 305: $text = 'Use Proxy';
-                    break;
-                case 400: $text = 'Bad Request';
-                    break;
-                case 401: $text = 'Unauthorized';
-                    break;
-                case 402: $text = 'Payment Required';
-                    break;
-                case 403: $text = 'Forbidden';
-                    break;
-                case 404: $text = 'Not Found';
-                    break;
-                case 405: $text = 'Method Not Allowed';
-                    break;
-                case 406: $text = 'Not Acceptable';
-                    break;
-                case 407: $text = 'Proxy Authentication Required';
-                    break;
-                case 408: $text = 'Request Time-out';
-                    break;
-                case 409: $text = 'Conflict';
-                    break;
-                case 410: $text = 'Gone';
-                    break;
-                case 411: $text = 'Length Required';
-                    break;
-                case 412: $text = 'Precondition Failed';
-                    break;
-                case 413: $text = 'Request Entity Too Large';
-                    break;
-                case 414: $text = 'Request-URI Too Large';
-                    break;
-                case 415: $text = 'Unsupported Media Type';
-                    break;
-                case 500: $text = 'Internal Server Error';
-                    break;
-                case 501: $text = 'Not Implemented';
-                    break;
-                case 502: $text = 'Bad Gateway';
-                    break;
-                case 503: $text = 'Service Unavailable';
-                    break;
-                case 504: $text = 'Gateway Time-out';
-                    break;
-                case 505: $text = 'HTTP Version not supported';
-                    break;
-                default:
-                    exit('Unknown http status code "' . htmlentities($code) . '"');
-                    break;
-            }
-
-            $protocol = (isset($_SERVER['SERVER_PROTOCOL']) ? $_SERVER['SERVER_PROTOCOL'] : 'HTTP/1.0');
-
-            header($protocol . ' ' . $code . ' ' . $text);
-
-            $GLOBALS['http_response_code'] = $code;
+    private function getMethodPayment() {
+        $cid = vRequest::getvar('cid', NULL, 'array');
+        if (is_Array($cid)) {
+            $virtuemart_paymentmethod_id = $cid[0];
         } else {
-
-            $code = (isset($GLOBALS['http_response_code']) ? $GLOBALS['http_response_code'] : 200);
+            $virtuemart_paymentmethod_id = $cid;
         }
-
-        return $code;
+        if (!($method = $this->getVmPluginMethod($virtuemart_paymentmethod_id))) {
+            return NULL; // Another method was selected, do nothing
+        }
+        return $method;
     }
 
-}
+    //get configurations
 
-// No closing tag
+    /**
+     * return configuration for the plugin
+     */
+    public function getConfig($key) {
+        $method = $this->getMethodPayment();
+        return $method != NULL ? $method->$key : NULL;
+    }
+}

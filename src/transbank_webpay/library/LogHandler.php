@@ -19,11 +19,14 @@ class LogHandler {
 
         $this->confdays = $days;
         $this->confweight = $weight;
+        $this->logDir = JPATH_ROOT . '/administrator/logs/Transbank_webpay';
 
-        $root = dirname(dirname(dirname(dirname(dirname(__FILE__)))));
-        include_once $root.'/configuration.php';
-        $config = new JConfig;
-        $this->logDir = $config->log_path."/Transbank_webpay";
+        try {
+            if (!file_exists($this->logDir)) {
+                mkdir($this->logDir, 0777, true);
+            }
+        } catch(Exception $e) {
+        }
 
         $dia = date('Y-m-d');
         $logFile = "{$this->logDir}/log_transbank_{$ecommerce}_{$dia}.log";
@@ -144,7 +147,7 @@ class LogHandler {
 
     private function delLockFile(){
         if (file_exists($this->lockfile)) {
-         unlink($this->lockfile);
+            unlink($this->lockfile);
         }
     }
 
@@ -169,7 +172,6 @@ class LogHandler {
     private function getTransactionId(){
         return $this->transactionID;
     }
-
 
     private function setLastLog(){
         $files = glob($this->logDir."/*.log");
@@ -242,7 +244,6 @@ class LogHandler {
         $result = array('log_count' => $count);
         return $result;
     }
-
 
     /** Funciones de mantencion de directorio de logs**/
 

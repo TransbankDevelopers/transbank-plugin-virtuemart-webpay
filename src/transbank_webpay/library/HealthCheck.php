@@ -162,14 +162,13 @@ class HealthCheck {
 
     // funcion para obtener info de cada ecommerce, si el ecommerce es incorrecto o no esta seteado se escapa como respuesta "NO APLICA"
     private function getEcommerceInfo($ecommerce){
-        $root = dirname(dirname(dirname(dirname(dirname(__FILE__)))));
-        include_once($root.'/administrator/components/com_virtuemart/version.php');
+        include_once(JPATH_ROOT.'/administrator/components/com_virtuemart/version.php');
         $actualversion = vmVersion::$RELEASE; // NOTE: confirmar si es como obtiene la version de ecommerce
         $lastversion = $this->getLastVirtuemartVersion();
-        if (! file_exists(JPATH_PLUGINS."/vmpayment/webpay/webpay.xml")) {
+        if (! file_exists(JPATH_PLUGINS."/vmpayment/transbank_webpay/transbank_webpay.xml")) {
             exit;
         } else {
-            $xml = simplexml_load_file(JPATH_PLUGINS."/vmpayment/webpay/webpay.xml",null, LIBXML_NOCDATA);
+            $xml = simplexml_load_file(JPATH_PLUGINS."/vmpayment/transbank_webpay/transbank_webpay.xml",null, LIBXML_NOCDATA);
             $json = json_encode($xml);
             $arr = json_decode($json,true);
             $currentplugin = $arr['version'];

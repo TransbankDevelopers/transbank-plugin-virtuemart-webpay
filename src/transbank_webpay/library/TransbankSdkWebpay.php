@@ -1,5 +1,5 @@
 <?php
-require_once('transbank-sdk/init.php');
+require_once('transbank-sdk-php/init.php');
 require_once('LogHandler.php');
 
 use Transbank\Webpay\Configuration;

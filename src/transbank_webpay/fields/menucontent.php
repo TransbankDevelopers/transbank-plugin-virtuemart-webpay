@@ -90,8 +90,10 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
     }
 
     $logs_list = "<ul>";
-    foreach ($logs->logs_list as $value) {
-        $logs_list .= "<li>{$value}</li>";
+    if (is_array($logs->logs_list) || is_object($logs->logs_list)) {
+        foreach ($logs->logs_list as $value) {
+            $logs_list .= "<li>{$value}</li>";
+        }
     }
     $logs_list .= "</ul>";
 
@@ -508,7 +510,7 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
                         <br>
                         <b>Contenido último Log: </b>
                         <div class="log_content">
-                            <pre><code><?php echo stripslashes($res_logcontent); ?></code></pre>
+                            <pre><code><?php echo stripslashes((string)$res_logcontent); ?></code></pre>
                         </div>
                     </div>
                 </div>
