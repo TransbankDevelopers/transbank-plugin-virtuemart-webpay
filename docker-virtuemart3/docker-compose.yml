@@ -6,8 +6,10 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=admin
   web:
-    image: 'opentools/docker-virtuemart:j3vm3'
     container_name: 'webpay_virtuemart_web'
+    build:
+      context: .
+      dockerfile: Dockerfile
     links:
       - db
     ports:
