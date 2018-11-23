@@ -100,7 +100,6 @@
 
                 <field type="vmtitle" description="" default="Estados de la orde" />
 
-                <field name="status_wait_payment" type="vmorderstate" scope="com_virtuemart" default="P" label="Orden por pagar" />
                 <field name="status_success" type="vmorderstate" scope="com_virtuemart" default="C" label="Orden pagada" />
                 <field name="status_canceled" type="vmorderstate" scope="com_virtuemart" default="D" label="Orden fallida" />
 

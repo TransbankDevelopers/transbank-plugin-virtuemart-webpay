@@ -10,10 +10,6 @@ if (!class_exists('ShopFunctions')) {
     require_once(JPATH_VM_ADMINISTRATOR . DS . 'helpers' . DS . 'shopfunctions.php');
 }
 
-if (!class_exists('VirtueMartModelOrders')) {
-    require_once(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
-}
-
 defined ('DIR_SYSTEM') or define ('DIR_SYSTEM', VMPATH_PLUGINS . '/vmpayment/transbank_webpay/transbank_webpay/');
 
 if (!class_exists('TransbankSdkWebpay')) {
@@ -29,6 +25,15 @@ if (!class_exists('LogHandler')) {
  * @autor vutreras (victor.utreras@continuum.cl)
  */
 class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
+
+    private $paymentTypeCodearray = array(
+        "VD" => "Venta Debito",
+        "VN" => "Venta Normal",
+        "VC" => "Venta en cuotas",
+        "SI" => "3 cuotas sin interés",
+        "S2" => "2 cuotas sin interés",
+        "NC" => "N cuotas sin interés",
+    );
 
     function __construct(&$subject, $config) {
 
@@ -90,69 +95,40 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
         $paymentMethodId = $order['details']['BT']->virtuemart_paymentmethod_id;
 
         if (!($method = $this->getVmPluginMethod($paymentMethodId))) {
-            return null; // Another method was selected, do nothing
+            return null;
         }
+
         if (!$this->selectedThisElement($method->payment_element)) {
             return false;
         }
 
-        $orderId = $order['details']['BT']->virtuemart_order_id;
-        $orderNumber = $order['details']['BT']->order_number;
         $amount = $order['details']['BT']->order_total;
         $sessionId = (string)intval(microtime(true));
+        $orderId = $order['details']['BT']->virtuemart_order_id;
+        $orderNumber = $order['details']['BT']->order_number;
 
-        // se guarda la orden de compra y el amount en la sesion
-        $session->set('webpay_order_id', $orderId);
-        $session->set('webpay_order_number', $orderNumber);
-        $session->set('webpay_order_amount', $amount);
+        $baseUrl = JURI::root() . 'index.php?option=com_virtuemart&view=pluginresponse' .
+                                '&task=pluginresponsereceived' .
+                                '&cid=' . $paymentMethodId;
 
-        $ambiente = $method->ambiente;
-        $secret_key = $method->key_secret;
-        $cert_publico = $method->cert_public;
-        $cert_transbank = $method->cert_transbank;
-        $id_comercio = $method->id_comercio;
-
-        $pluginResponseUrl = 'index.php?option=com_virtuemart&view=pluginresponse';
-
-        $baseUrl = JURI::root() . $pluginResponseUrl . '&task=pluginresponsereceived' .
-                                '&status_code={status}&on=' . $orderNumber.
-                                '&pm=' . $paymentMethodId .
-                                '&transaction_id=' . $orderId;
-
-        $finalUrl = str_replace('{status}', 'ok', $baseUrl);
-        $errorurl = str_replace('{status}', 'cancel', $baseUrl);
-        $returnUrl = JURI::root() . $pluginResponseUrl . '&format=raw&task=pluginnotification' .
-                                    '&tmpl=component&pm=' . $paymentMethodId;
-
-        $session->set('webpay_error_url', $errorurl);
-
-        /*
-        $order = array();
-        $order['order_number'] = $orderNumber;
-        $order['order_status'] = $this->getConfig('status_wait_payment');
-        $order['virtuemart_order_id'] = $orderId;
-        $order['virtuemart_paymentmethod_id'] = $paymentMethodId;
-        $order['customer_notified'] = 1;
-        $order['comments'] = "Esperando el pago";
-        $order['payment_name'] = TransbankSdkWebpay::PLUGIN_CODE;
-        //$this->storePSPluginInternalData($order);
-        */
+        $returnUrl = $baseUrl;
+        $finalUrl = $baseUrl;
 
         $config = array(
-            "MODO" => $ambiente,
-            "PRIVATE_KEY" => $secret_key,
-            "PUBLIC_CERT" => $cert_publico,
-            "WEBPAY_CERT" => $cert_transbank,
-            "COMMERCE_CODE" => $id_comercio,
+            "MODO" => $this->getConfig('ambiente'),
+            "PRIVATE_KEY" => $this->getConfig('key_secret'),
+            "PUBLIC_CERT" => $this->getConfig('cert_public'),
+            "WEBPAY_CERT" => $this->getConfig('cert_transbank'),
+            "COMMERCE_CODE" => $this->getConfig('id_comercio'),
             "URL_FINAL" => $finalUrl,
             "URL_RETURN" => $returnUrl,
             "ECOMMERCE" => 'virtuemart'
         );
 
         $transbankSdkWebpay = new TransbankSdkWebpay($config);
-        $result = $transbankSdkWebpay->initTransaction($amount, $sessionId, $orderNumber, 'xx'.$returnUrl, 'xx'.$finalUrl);
+        $result = $transbankSdkWebpay->initTransaction($amount, $sessionId, $orderNumber, $returnUrl, $finalUrl);
 
-        $this->log->logInfo('result: ' . json_encode($result));
+        $session->set('webpay_order_id', $orderId);
 
         if (isset($result["token_ws"])) {
 
@@ -160,42 +136,18 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
             $tokenWs = $result["token_ws"];
 
             $session->set('webpay_payment_ok', 'WAITING');
-            $session->set('webpay_url', $url);
             $session->set('webpay_token_ws', $tokenWs);
-            $session->set('webpay_config', $config);
 
             $this->toRedirect($url, array('token_ws' => $tokenWs));
 
         } else {
 
             $session->set('webpay_payment_ok', 'FAIL');
-            $session->set('webpay_voucher_txresptexto', $result['error'] . ', ' . $result['detail']);
-            $session->set('webpay_voucher_ordencompra', $orderNumber);
-            $session->set('webpay_voucher_txdate_fecha', date('d-m-Y'));
-            $session->set('webpay_voucher_txdate_hora', date('H:i:s'));
-
             $app = JFactory::getApplication();
-            $app->enqueueMessage('Ocurrio un error al intentar conectar con WebPay.', 'error');
-            $app->redirect($errorurl);
+            $app->redirect($finalUrl);
         }
 
-        /*$cart->_confirmDone = false;
-        $cart->_dataValidated = false;
-        $cart->setCartIntoSession();
-        */
         die();
-    }
-
-    private function toRedirect($url, $data) {
-        echo "<form action='$url' method='POST' name='webpayForm'>";
-        foreach ($data as $name => $value) {
-            echo "<input type='hidden' name='".htmlentities($name)."' value='".htmlentities($value)."'>";
-        }
-        echo "</form>";
-        echo "<script language='JavaScript'>"
-                ."document.webpayForm.submit();"
-                ."</script>";
-        return true;
     }
 
     /**
@@ -204,312 +156,177 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
      */
     function plgVmOnPaymentResponseReceived(&$html) {
 
-        $paymentmethodId = JRequest::getInt('pm', 0);
-        $session = JFactory::getSession();
-
-        if (!($method = $this->getVmPluginMethod($paymentmethodId))) {
-            return null; // Another method was selected, do nothing
+        if (!($method = $this->getMethodPayment())) {
+            return null;
         }
 
         if (!$this->selectedThisElement($method->payment_element)) {
             return false;
         }
 
-        $request = JRequest::get('request');
-        $orderId = $session->get('webpay_order_id', "");
+        $session = JFactory::getSession();
+        $paymentOk = $session->get('webpay_payment_ok');
+        $orderId = $session->get('webpay_order_id');
+        $tokenWs = $session->get('webpay_token_ws');
 
-        if($session->get('webpay_flag_anulacion', "NO")){
-            if ($request['status_code'] == 'ok') {
-                $html = $this->getHtmlPaymentResponse('La orden se ha creado exitosamente', true);
-                $html .= $this->_getHtmlPaymentDataResponse($request);
-                $this->emptyCart(null);
-            } else {
-                $html = $this->getHtmlPaymentResponse('La compra ha sido rechazada.', false);
-                $html .= $this->_getHtmlPaymentDataRejectResponse($request);
-            }
-        } else { //compra anulada por usuario
-            $session->set('webpay_flag_anulacion', 'SI'); //se resetea flag
+        if($paymentOk == 'WAITING'){
+
+            $transbankSdkWebpay = new TransbankSdkWebpay($config);
+            $result = $transbankSdkWebpay->commitTransaction($tokenWs);
+
+            $session->set('result', json_encode($result));
 
             $order = array();
-            $order['order_status'] = $this->getConfig('status_canceled');
             $order['virtuemart_order_id'] = $orderId;
             $order['customer_notified'] = 1;
-            $order['comments'] = "Anulado por el usuario";
+            $order['transbank_webpay_metadata'] = json_encode($result);
 
-            $modelOrder = VmModel::getModel('orders');
-            $modelOrder->updateStatusForOneOrder($orderId, $order, true);
+            if (isset($result->buyOrder) && isset($result->detailOutput) && $result->detailOutput->responseCode == 0) {
 
-            $html = $this->getHtmlPaymentResponse('La compra ha sido anulada por el usuario.', true);
+                $session->set('webpay_payment_ok', 'SUCCESS');
+
+                $comment = array(
+                    'buyOrder' => $result->buyOrder,
+                    'sessionId' => $result->sessionId,
+                    'responseCode' => $result->detailOutput->responseCode,
+                    'authorizationCode' => $result->detailOutput->authorizationCode,
+                    'paymentTypeCode' => $result->detailOutput->paymentTypeCode,
+                    'vci' => $result->VCI
+                );
+
+                $order['order_status'] = $this->getConfig('status_success');
+                $order['comments'] = 'Pago exitoso: ' . json_encode($comment);
+
+                $modelOrder = VmModel::getModel('orders');
+                $modelOrder->updateStatusForOneOrder($orderId, $order, true);
+
+                $this->toRedirect($result->urlRedirection, array('token_ws' => $tokenWs));
+                die();
+
+            } else {
+
+                $session->set('webpay_payment_ok', 'FAIL');
+
+                $comment = $result;
+
+                //check if was return from webpay, then use only subset data
+                if (isset($result->buyOrder)) {
+                    $comment = array(
+                        'buyOrder' => $result->buyOrder,
+                        'sessionId' => $result->sessionId,
+                        'responseCode' => $result->detailOutput->responseCode,
+                        'responseDescription' => $result->detailOutput->responseDescription
+                    );
+                }
+
+                $order['order_status'] = $this->getConfig('status_canceled');
+                $order['comments'] = 'Pago fallido: ' . json_encode($comment);
+
+                $modelOrder = VmModel::getModel('orders');
+                $modelOrder->updateStatusForOneOrder($orderId, $order, true);
+
+                $html = $this->getRejectMessage($result);
+            }
+
+        } else {
+
+            $result = $session->get('result');
+
+            if($paymentOk == 'SUCCESS') {
+
+                $html = $this->getSuccessMessage($result);
+                $this->emptyCart(null);
+
+            } else if ($paymentOk == 'FAIL') {
+
+                $order = array();
+                $order['order_status'] = $this->getConfig('status_canceled');
+                $order['virtuemart_order_id'] = $orderId;
+                $order['customer_notified'] = 1;
+                $order['comments'] = $result->error . ', ' . $result->detail;
+
+                $modelOrder = VmModel::getModel('orders');
+                $modelOrder->updateStatusForOneOrder($orderId, $order, true);
+
+                $html = $this->getRejectMessage($result);
+            }
         }
         return null;
     }
 
-    /**
-     * Process a payment cancellation
-     * @Override
-     */
-    function plgVmOnUserPaymentCancel() {
+    private function getSuccessMessage($result) {
 
-        $session = JFactory::getSession();
-        $orderId = $session->get('webpay_order_id', "");
-
-        if (!($paymentTable = $this->getDataByOrderId($orderId))) {
-            return null;
+        if (is_string($result)) {
+            $result = json_decode($result);
+        } else {
+            $result = json_encode($result);
+            $result = json_decode($result);
         }
 
-        $order = array();
-        $order['order_status'] = $this->getConfig('status_canceled');
-        $order['virtuemart_order_id'] = $orderId;
-        $order['customer_notified'] = 0;
-        $order['comments'] = vmText::_('Rechazado desde Webpay');
-
-        $modelOrder = VmModel::getModel ('orders');
-        $modelOrder->updateStatusForOneOrder($orderId, $order, true);
-
-        $errorurl = $session->get('webpay_error_url', "");
         $app = JFactory::getApplication();
-        $app->redirect($errorurl);
+        $app->enqueueMessage('Pago exitoso', 'message');
 
-        return true;
-    }
-
-    /**
-     * Webpay payment callback
-     */
-    function plgVmOnPaymentNotification() {
-
-
-        $virtuemart_paymentmethod_id = JRequest::getInt('pm', 0);
-
-        if (!($method = $this->getVmPluginMethod($virtuemart_paymentmethod_id))) {
-            return null; // Another method was selected, do nothing
-        }
-
-        $privatekey = $method->secret;
-        $comercio = $method->receiver_id;
-
-        $errorResponse = array('status' => 'RECHAZADO', 'c' => $comercio);
-        $acceptResponse = array('status' => 'ACEPTADO', 'c' => $comercio);
-
-        $this->logInfo('plgVmOnPaymentNotification -- notification from merchant', 'message');
-
-        $response = JRequest::get('response');
-        $data = $response['response'];
-        $voucher = false;
-        $error_transbank = "NO";
-
-        $session = & JFactory::getSession();
-        $token_ws = $session->get('webpay_token_ws', "EMPTY");
-        $config = $session->get('webpay_config', "EMPTY");
-
-        try {
-          $webpay = new WebPayNormal($config);
-            $result = $webpay->getTransactionResult($token_ws);
-        } catch (Exception $e) {
-            $result["error"] = "Error conectando a Webpay";
-            $result["detail"] = $e->getMessage();
-            $error_transbank = "SI";
-        }
-
-
-        $order_id = $result->buyOrder;
-        $this->savePaymentDataVoucherTransbank($result, $error_transbank);
-
-        if ($order_id && $error_transbank == "NO") {
-
-            if (($result->VCI == "TSY" || $result->VCI == "A" || $result->VCI == "")) {
-                // Transaccion autorizada
-                $voucher = true;
-
-            } else {
-                $responseDescription = htmlentities($result->detailOutput->responseDescription);
-            }
-        }
-
-        $order = null;
-        $order_number = $session->get('webpay_order_number', "");
-
-        $virtuemart_order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
-        if ($virtuemart_order_id) {
-            $order = VirtueMartModelOrders::getOrder($virtuemart_order_id);
-        }
-
-        if (!$order) {
-            vmdebug('plgVmOnPaymentNotification ' . $this->_name, $response, $virtuemart_order_id);
-            $this->logInfo('plgVmOnPaymentNotification -- payment merchant confirmation attempted on non existing order : ' . $virtuemart_order_id, 'error');
-            return;
-        }
-
-        $order_total = floor($order['details']['BT']->order_total);
-        $amount = $session->get('webpay_order_amount', "");
-        $amount_floor = floor($amount);
-
-
-        if ($order_total != $amount_floor) {
-            vmdebug('plgVmOnPaymentNotification ' . $this->_name, $response, $amount);
-            $this->logInfo('plgVmOnPaymentNotification -- payment merchant confirmation attempted inconsistent amount : ' . $amount . ' expected ' . $order_total, 'error');
-        }
-
-
-        if ($voucher == true) {
-            // save order data
-            $session->set('webpay_flag_anulacion', 'NO');
-
-            $modelOrder = VmModel::getModel('orders');
-            $order['order_status'] = $this->getConfig('status_success');
-            $order['virtuemart_order_id'] = $virtuemart_order_id;
-            $order['customer_notified'] = 1;
-            $order['comments'] = "Confirmado desde Webpay";
-            vmdebug($this->_name . ' - PaymentNotification', $order);
-
-            $modelOrder->updateStatusForOneOrder($virtuemart_order_id, $order, true);
-
-            //se va al voucher final de transbank.
-            $this->redirect($result->urlRedirection, array("token_ws" => $token_ws));
-        }else{
-            $session->set('webpay_flag_anulacion', 'NO');
-            $this->plgVmOnUserPaymentCancel();
-        }
-
-        die();
-    }
-
-    public static function redirect($url, $data){
-      	echo  "<form action='" . $url . "' method='POST' name='webpayForm'>";
-        	foreach ($data as $name => $value) {
-  			echo "<input type='hidden' name='".htmlentities($name)."' value='".htmlentities($value)."'>";
-  		}
-  		echo  "</form>"
-  			 ."<script language='JavaScript'>"
-               ."document.webpayForm.submit();"
-               ."</script>";
-     }
-
-    public function savePaymentDataVoucherTransbank($result, $error_transbank) {
-
-        $paymentTypeCodearray = array(
-            "VD" => "Venta D&eacute;bito",
-            "VN" => "Venta Normal",
-            "VC" => "Venta en cuotas",
-            "SI" => "3 cuotas sin inter&eacute;s",
-            "S2" => "2 cuotas sin inter&eacute;s",
-            "NC" => "N cuotas sin inter&eacute;s",
-        );
-
-        $session = & JFactory::getSession();
-
-        if ($result->detailOutput->responseCode == 0) {
-            $transactionResponse = "Aceptado";
+        if($result->detailOutput->paymentTypeCode == "SI" || $result->detailOutput->paymentTypeCode == "S2" ||
+            $result->detailOutput->paymentTypeCode == "NC" || $result->detailOutput->paymentTypeCode == "VC" ) {
+            $tipoCuotas = $this->paymentTypeCodearray[$result->detailOutput->paymentTypeCode];
         } else {
-            $transactionResponse = $result->detailOutput->responseDescription; //." (".$result->detailOutput->responseCode.")";
+            $tipoCuotas = "Sin cuotas";
         }
 
-        if ($error_transbank == "NO") {
+		$message = "<h2>Detalles del pago con Webpay</h2>
+        <p>
+            <br>
+            <b>Respuesta de la Transacci&oacute;n: </b>{$result->detailOutput->responseCode}<br>
+            <b>Monto:</b> $ {$result->detailOutput->amount}<br>
+            <b>Order de Compra: </b> {$result->detailOutput->buyOrder}<br>
+            <b>Fecha de la Transacci&oacute;n: </b>".date('d-m-Y', strtotime($result->transactionDate))."<br>
+            <b>Hora de la Transacci&oacute;n: </b>".date('H:i:s', strtotime($result->transactionDate))."<br>
+            <b>Tarjeta: </b>************{$result->cardDetail->cardNumber}<br>
+            <b>C&oacute;digo de autorizacion: </b>{$result->detailOutput->authorizationCode}<br>
+            <b>N&uacute;mero de cuotas: </b>{$tipoCuotas}
+        </p>";
+        return $message;
+    }
 
-            $session->set('webpay_result_code', $result->detailOutput->responseCode);
-            $session->set('webpay_result_desc', $transactionResponse);
-        }
-        $date_tmp = strtotime($result->transactionDate);
-        $date_tx_hora = date('H:i:s', $date_tmp);
-        $date_tx_fecha = date('d-m-Y', $date_tmp);
+    private function getRejectMessage($result) {
 
-
-        //tipo de cuotas
-        if ($result->detailOutput->paymentTypeCode == "SI" || $result->detailOutput->paymentTypeCode == "S2" ||
-                $result->detailOutput->paymentTypeCode == "NC" || $result->detailOutput->paymentTypeCode == "VC") {
-            $tipo_cuotas = $paymentTypeCodearray[$result->detailOutput->paymentTypeCode];
+        if (is_string($result)) {
+            $result = json_decode($result);
         } else {
-            $tipo_cuotas = "Sin cuotas";
+            $result = json_encode($result);
+            $result = json_decode($result);
         }
-        $session->set('webpay_tx_anulada', "NO");
 
-        $session->set('webpay_voucher_token', $url_token);
-        $session->set('webpay_voucher_txresptexto', $transactionResponse);
-        $session->set('webpay_voucher_totalpago', $result->detailOutput->amount);
-        $session->set('webpay_voucher_accdate', $result->accountingDate);
-        $session->set('webpay_voucher_ordencompra', $result->buyOrder);
-        $session->set('webpay_voucher_txdate_hora', $date_tx_hora);
-        $session->set('webpay_voucher_txdate_fecha', $date_tx_fecha);
-        $session->set('webpay_voucher_nrotarjeta', $result->cardDetail->cardNumber);
-        $session->set('webpay_voucher_autcode', $result->detailOutput->authorizationCode);
-        $session->set('webpay_voucher_tipopago', $paymentTypeCodearray[$result->detailOutput->paymentTypeCode]);
-        $session->set('webpay_voucher_tipocuotas', $tipo_cuotas);
-        $session->set('webpay_voucher_respcode', $result->detailOutput->responseCode);
-        $session->set('webpay_voucher_nrocuotas', $result->detailOutput->sharesNumber);
-    }
+        $app = JFactory::getApplication();
+        $app->enqueueMessage('Pago rechazado', 'error');
 
-    private function getHtmlPaymentResponse($msg, $success = true) {
-        if (!$success) {
-            return '<p style="text-align: center;">' . JText::_($msg) . '</p>';
+        if  (isset($result->detailOutput)) {
+            $message = "<h2>Transacci&oacute;n rechazada con Webpay</h2>
+            <p>
+                <br>
+                <b>Respuesta de la Transacci&oacute;n: </b>{$result->detailOutput->responseCode}<br>
+                <b>Monto:</b> $ {$result->detailOutput->amount}<br>
+                <b>Order de Compra: </b> {$result->detailOutput->buyOrder}<br>
+                <b>Fecha de la Transacci&oacute;n: </b>".date('d-m-Y', strtotime($result->transactionDate))."<br>
+                <b>Hora de la Transacci&oacute;n: </b>".date('H:i:s', strtotime($result->transactionDate))."<br>
+                <b>Tarjeta: </b>************{$result->cardDetail->cardNumber}<br>
+                <b>Mensaje de Rechazo: </b>{$result->detailOutput->responseDescription}
+            </p>";
+            return $message;
+        } else if (isset($result->error)) {
+            $error = $result->error;
+            $detail = isset($result->detail) ? $result->detail : 'Sin detalles';
+            $message = "<h2>Transacci&oacute;n fallida con Webpay</h2>
+            <p>
+                <br>
+                <b>Respuesta de la Transacci&oacute;n: </b>{$error}<br>
+                <b>Mensaje: </b>{$detail}
+            </p>";
+            return $message;
         } else {
-            $html = '<table>' . "\n";
-            $html .= '<thead><tr><td colspan="2" style="text-align: center;">' . JText::_($msg) . '</td></tr></thead>';
-            $html .= '</table>' . "\n";
-            return $html;
+            $message = "<h2>Transacci&oacute;n Fallida</h2>";
+            return $message;
         }
-    }
-
-    function _getHtmlPaymentDataResponse($resp) {
-
-        $html = '<div class="product vm-col">';
-        //$html = '<div class="product vm-col">';
-        $html .= '<table>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> DETALLES DEL PAGO :  </td></tr></thead><br>';
-        $html .= '</table>' . "\n";
-        $html .= '<table>' . "\n";
-
-        $session = & JFactory::getSession();
-
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Respuesta de la Transacci&oacute;n : ' . $session->get('webpay_voucher_txresptexto', "") . '</td></tr></thead><br>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Tarjeta de cr&eacute;dito: ' . $session->get('webpay_voucher_nrotarjeta', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Fecha de Transacci&oacute;n : ' . $session->get('webpay_voucher_txdate_fecha', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Hora de Transacci&oacute;n : ' . $session->get('webpay_voucher_txdate_hora', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Monto Compra : ' . $session->get('webpay_voucher_totalpago', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Orden de Compra : ' . $session->get('webpay_voucher_ordencompra', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Codigo de Autorizaci&oacute;n : ' . $session->get('webpay_voucher_autcode', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Tipo de Pago : ' . $session->get('webpay_voucher_tipopago', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Tipo de Cuotas : ' . $session->get('webpay_voucher_tipocuotas', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Numero de cuotas : ' . $session->get('webpay_voucher_nrocuotas', "") . '</td></tr></thead>';
-        $html .= '</table>' . "\n";
-        $html .= '</div>' . "\n";
-        return $html;
-    }
-
-    function _getHtmlPaymentDataRejectResponse($resp) {
-        $session = JFactory::getSession();
-        $html = '<div class="product vm-col">';
-        $html .= '<table>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> DETALLES DE RECHAZO:</td></tr></thead><br>';
-        $html .= '</table>';
-        $html .= '<table>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Respuesta de la Transacci&oacute;n : ' . $session->get('webpay_voucher_txresptexto', "") . '</td></tr></thead><br>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Orden de Compra : ' . $session->get('webpay_voucher_ordencompra', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Fecha de Transacci&oacute;n : ' . $session->get('webpay_voucher_txdate_fecha', "") . '</td></tr></thead>';
-        $html .= '<thead><tr><td colspan="2" style="text-align: left;"> Hora de Transacci&oacute;n : ' . $session->get('webpay_voucher_txdate_hora', "") . '</td></tr></thead>';
-        $html .= '</table>';
-        $html .= '</div>';
-        return $html;
-    }
-
-    function savePaymentData($virtuemart_order_id, $resp) {
-        $response[$this->_tablepkey] = $this->_getTablepkeyValue($virtuemart_order_id);
-        $response['virtuemart_order_id'] = $virtuemart_order_id;
-        $response[$this->_name . '_response_payment_date'] = gmdate('Y-m-d H:i:s', time());
-        $response[$this->_name . '_response_payment_status'] = $resp['status_code'];
-        $response[$this->_name . '_response_trans_id'] = $resp['transaction_id'];
-        $this->storePSPluginInternalData($response, $this->_tablepkey, true);
-    }
-
-    function _getTablepkeyValue($virtuemart_order_id) {
-        $db = JFactory::getDBO();
-        $q = 'SELECT ' . $this->_tablepkey . ' FROM `' . $this->_tablename . '` ' . 'WHERE `virtuemart_order_id` = ' . $virtuemart_order_id;
-        $db->setQuery($q);
-
-        if (!($pkey = $db->loadResult())) {
-            JError::raiseWarning(500, $db->getErrorMsg());
-            return '';
-        }
-        return $pkey;
     }
 
     /**
@@ -666,7 +483,35 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
 		return $this->setOnTablePluginParams($name, $id, $table);
     }
 
+    /**
+     * empty cart
+     * @Override
+     */
+    public function emptyCart($session_id = null, $order_number = null) {
+        if ($session_id != null) {
+            $session = JFactory::getSession();
+            $session->close();
+            session_id($session_id);
+            session_start();
+        }
+        $cart = $this->getCurrentCart();
+        $cart->emptyCart();
+        return true;
+    }
+
     //Helpers
+
+    private function toRedirect($url, $data) {
+        echo "<form action='$url' method='POST' name='webpayForm'>";
+        foreach ($data as $name => $value) {
+            echo "<input type='hidden' name='".htmlentities($name)."' value='".htmlentities($value)."'>";
+        }
+        echo "</form>";
+        echo "<script language='JavaScript'>"
+                ."document.webpayForm.submit();"
+                ."</script>";
+        return true;
+    }
 
     /**
      * return the current cart
@@ -686,28 +531,6 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
             require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
         }
         return new VirtueMartModelOrders();
-    }
-
-    /**
-     * empty cart
-     */
-    public function emptyCart($session_id = null, $order_number = null) {
-        if ($session_id != null) {
-            $session = JFactory::getSession();
-            $session->close();
-
-            // Recover session in wich the payment is done
-            session_id($session_id);
-            session_start();
-        }
-
-        if (!class_exists('VirtueMartCart')) {
-            require (JPATH_VM_SITE . DS . 'helpers' . DS . 'cart.php');
-        }
-
-        $cart = VirtueMartCart::getCart();
-        $cart->emptyCart();
-        return true;
     }
 
     /**
