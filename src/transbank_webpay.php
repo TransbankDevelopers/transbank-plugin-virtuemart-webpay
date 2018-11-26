@@ -59,8 +59,6 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
 
         if ($config['name'] == self::PLUGIN_CODE) {
 
-            $this->log = new LogHandler();
-
             $varsToPush = $this->getVarsToPush();
             $this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
             $this->setCryptedFields(array('key'));
@@ -113,9 +111,7 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
      */
     function plgVmConfirmedOrder($cart, $order) {
 
-        //Se inicializa el flag de anulacion
         $session = JFactory::getSession();
-        $session->set('webpay_flag_anulacion', 'SI');
 
         $paymentMethodId = $order['details']['BT']->virtuemart_paymentmethod_id;
 
@@ -139,16 +135,7 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
         $returnUrl = $baseUrl;
         $finalUrl = $baseUrl;
 
-        $config = array(
-            "MODO" => $this->getConfig('ambiente'),
-            "PRIVATE_KEY" => $this->getConfig('key_secret'),
-            "PUBLIC_CERT" => $this->getConfig('cert_public'),
-            "WEBPAY_CERT" => $this->getConfig('cert_transbank'),
-            "COMMERCE_CODE" => $this->getConfig('id_comercio'),
-            "URL_FINAL" => $finalUrl,
-            "URL_RETURN" => $returnUrl,
-            "ECOMMERCE" => 'virtuemart'
-        );
+        $config = $this->getAllConfig();
 
         $transbankSdkWebpay = new TransbankSdkWebpay($config);
         $result = $transbankSdkWebpay->initTransaction($amount, $sessionId, $orderNumber, $returnUrl, $finalUrl);
