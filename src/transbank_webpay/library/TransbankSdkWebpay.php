@@ -7,9 +7,6 @@ use Transbank\Webpay\Webpay;
 
 class TransbankSdkWebpay {
 
-    const PLUGIN_VERSION = '2.4.0'; //version of plugin payment
-    const PLUGIN_CODE = 'transbank_webpay'; //code of plugin for virtuemart
-
     var $transaction;
 
     function __construct($config) {
@@ -37,6 +34,9 @@ class TransbankSdkWebpay {
         $result = array();
 		try{
             $initResult = $this->transaction->initTransaction($amount, $buyOrder, $sessionId, $returnUrl, $finalUrl);
+
+            $this->log->logInfo(json_encode($initResult));
+
             if (isset($initResult) && isset($initResult->url) && isset($initResult->token)) {
                 $result = array(
 					"url" => $initResult->url,

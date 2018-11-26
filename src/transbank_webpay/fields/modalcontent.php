@@ -7,143 +7,135 @@ if (!class_exists('vmPSPlugin')) {
 
 include_once(dirname( dirname(__FILE__) ) . '/library/HealthCheck.php');
 include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
+include_once(dirname( dirname(__FILE__) ) . '/library/ConfigProvider.php');
 
-    $db = JFactory::getDbo();
-    $query = $db->getQuery(true);
-    $query->select($db->quoteName(array('payment_params')));
-    $query->from($db->quoteName('#__virtuemart_paymentmethods'));
-    $query->where($db->quoteName('payment_element') . ' = '. $db->quote('webpay'));
-    $query->order('ordering ASC');
-    $db->setQuery($query);
-    $results = $db->loadObjectList();
-    $array = json_decode(json_encode($results[0]), True);
-    $array = $array['payment_params'];
-    $arr = explode("|", $array);
-    array_pop($arr);
+$cid = vRequest::getvar('cid', NULL, 'array');
+if (is_Array($cid)) {
+    $virtuemart_paymentmethod_id = $cid[0];
+} else {
+    $virtuemart_paymentmethod_id = $cid;
+}
 
-    $configBd = array();
-    foreach ($arr as $value) {
-        $array = explode('=', $value);
-        $array[1] = trim($array[1], '"');
-        $configBd[$array[0]] = $array[1];
-    }
+$baseUrl = "index.php?option=com_virtuemart&view=paymentmethod&task=edit&cid[]={$virtuemart_paymentmethod_id}";
+$urlCreaPdfReport = $baseUrl . '&creaPdf=true&document=report';
+$urlCreaPdfPhpInfo = $baseUrl . '&creaPdf=true&document=php_info';
+$urlUpdateConfig = $baseUrl . '&updateConfig=true';
+$urlCheckTransaction = $baseUrl . '&checkTransaction=true';
 
-    $config = null;
+$confProv = new ConfigProvider();
+$configBd = $confProv->getConfig();
 
-    if (!isset($configBd['MODO']) or $configBd['MODO'] == "" or $configBd['MODO'] == null or $configBd['MODO'] == 'INTEGRACION') {
-        include_once(dirname( dirname(__FILE__) ) . '/library/Certificates.php');
-        $config = array(
-            'MODO' => $certificate['environment'],
-            'COMMERCE_CODE' => $certificate['commerce_code'],
-            'PUBLIC_CERT' => $certificate['public_cert'],
-            'PRIVATE_KEY' => $certificate['private_key'],
-            'WEBPAY_CERT' => $certificate['webpay_cert'],
-            'ECOMMERCE' => 'virtuemart'
-        );
-    } else {
-        $config = array(
-            'MODO' => "{$configBd['MODO']}",
-            'COMMERCE_CODE' => "{$configBd['id_comercio']}",
-            'PUBLIC_CERT' => "{$configBd['cert_public']}",
-            'PRIVATE_KEY' => "{$configBd['key_secret']}",
-            'WEBPAY_CERT' => "{$configBd['cert_transbank']}",
-            'ECOMMERCE' => 'virtuemart'
-        );
-    }
+$config = null;
 
-    $loghandler = new LogHandler();
-    $logs = json_decode($loghandler->getResume());
+if (!isset($configBd['ambiente']) or $configBd['ambiente'] == "" or
+    $configBd['ambiente'] == null or $configBd['ambiente'] == 'INTEGRACION') {
+    include_once(dirname( dirname(__FILE__) ) . '/library/Certificates.php');
+    $config = array(
+        'MODO' => $certificate['environment'],
+        'COMMERCE_CODE' => $certificate['commerce_code'],
+        'PUBLIC_CERT' => $certificate['public_cert'],
+        'PRIVATE_KEY' => $certificate['private_key'],
+        'WEBPAY_CERT' => $certificate['webpay_cert'],
+        'ECOMMERCE' => 'virtuemart'
+    );
+} else {
+    $config = array(
+        'MODO' => $configBd['ambiente'],
+        'COMMERCE_CODE' => $configBd['id_comercio'],
+        'PUBLIC_CERT' => $configBd['cert_public'],
+        'PRIVATE_KEY' => $configBd['key_secret'],
+        'WEBPAY_CERT' => $configBd['cert_transbank'],
+        'ECOMMERCE' => 'virtuemart'
+    );
+}
 
-    $healthCheck = new HealthCheck($config);
-    $res = json_decode($healthCheck->printFullResume());
+$loghandler = new LogHandler();
+$logs = json_decode($loghandler->getResume());
 
-    if ($res->validate_init_transaction->status->string == 'OK') {
-        $respuesta_init = "<tr><td><div title='URL entregada por Transbank para realizar la transacción' class='label label-info'>?</div> <b>URL: </b></td><td class='tbk_table_trans'>{$res->validate_init_transaction->response->url}</td></tr><tr><td><div title='Token entregada por Transbank para realizar la transacción' class='label label-info'>?</div> <b>Token: </b></td><td class='tbk_table_trans'><code>{$res->validate_init_transaction->response->token_ws}</code></td></tr>";
+$healthCheck = new HealthCheck($config);
+$res = json_decode($healthCheck->printFullResume());
+
+function showOkOrError($var){
+    if ($var == "OK") {
+        return "<span class='label label-success'>OK</span>";
     }else{
-        $respuesta = "Error!";
+        return "<span class='label label-danger'>{$var}</span>";
     }
+}
 
-    function classresp($var){
-        if ($var == "OK") {
-            return "<span class='label label-success'>OK</span>";
-        }else{
-            return "<span class='label label-danger'>{$var}</span>";
-        }
+if (isset($logs->last_log->log_content)) {
+    $res_logcontent = $logs->last_log->log_content;
+    $log_file = $logs->last_log->log_file;
+    $log_file_weight = $logs->last_log->log_weight;
+    $log_file_regs = $logs->last_log->log_regs_lines;
+} else {
+    $res_logcontent = $logs->last_log;
+    $log_file = json_encode($res_logcontent);
+    $log_file_weight = $log_file;
+    $log_file_regs = $log_file;
+}
+
+if ($logs->config->status === false ) {
+    $estado = "<span class='label label-warning'>Desactivado sistema de Registros</span>";
+}else{
+    $estado = "<span class='label label-success'>Activado sistema de Registros</span>";
+}
+
+$logs_list = "<ul>";
+if (is_array($logs->logs_list) || is_object($logs->logs_list)) {
+    foreach ($logs->logs_list as $value) {
+        $logs_list .= "<li>{$value}</li>";
     }
+}
+$logs_list .= "</ul>";
 
-    if (isset($logs->last_log->log_content)) {
-        $res_logcontent = $logs->last_log->log_content;
-        $log_file = $logs->last_log->log_file;
-        $log_file_weight = $logs->last_log->log_weight;
-        $log_file_regs = $logs->last_log->log_regs_lines;
-    } else {
-        $res_logcontent = $logs->last_log;
-        $log_file = json_encode($res_logcontent);
-        $log_file_weight = $log_file;
-        $log_file_regs = $log_file;
-    }
+$logs_main_info =
+        "<table>
+            <tr>
+                <td><div title='Informa si actualmente se guarda la información de cada compra mediante Webpay' class='label label-info'>?</div> <b>Estado de Registros: </b></td>
+                <td class='tbk_table_td'>{$estado}</td>
+            </tr>
+            <tr>
+                <td><div title='Carpeta en el servidor en donde se guardan los archivos con la informacón de cada compra mediante Webpay' class='label label-info'>?</div> <b>Directorio de Registros: </b></td>
+                <td class='tbk_table_td'>".stripslashes(json_encode($logs->log_dir))."</td>
+            </tr>
+            <tr>
+                <td><div title='Cantidad de archivos que guardan la información de cada compra mediante Webpay' class='label label-info'>?</div> <b>Cantidad de Registros en Directorio: </b></td>
+                <td class='tbk_table_td'>".json_encode($logs->logs_count->log_count)."</td>
+            </tr>
+            <tr>
+                <td><div title='Lista los archivos archivos que guardan la información de cada compra mediante Webpay' class='label label-info'>?</div> <b>Listado de Registros Disponibles: </b></td>
+                <td class='tbk_table_td'>{$logs_list}</td>
+            </tr>
+        </table>";
 
-    if ($logs->config->status === false ) {
-        $estado = "<span class='label label-warning'>Desactivado sistema de Registros</span>";
-    }else{
-        $estado = "<span class='label label-success'>Activado sistema de Registros</span>";
-    }
+$plugininfo =
+            "<tr>
+                <td><b>E-commerce</b></td>
+                <td>{$res->server_resume->plugin_info->ecommerce}</td>
+            </tr>
+            <tr>
+                <td><b>Version E-commerce</b></td>
+                <td>{$res->server_resume->plugin_info->ecommerce_version}</td>
+            </tr>
+            <tr>
+                <td><b>Version Plugin Webpay Instalada</b></td>
+                <td>{$res->server_resume->plugin_info->current_plugin_version}</td>
+            </tr>
+            <tr>
+                <td><b>Ultima Version disponible para este E-commerce</b></td>
+                <td>{$res->server_resume->plugin_info->last_plugin_version}</td>
+            </tr>";
 
-    $logs_list = "<ul>";
-    if (is_array($logs->logs_list) || is_object($logs->logs_list)) {
-        foreach ($logs->logs_list as $value) {
-            $logs_list .= "<li>{$value}</li>";
-        }
-    }
-    $logs_list .= "</ul>";
-
-    $logs_main_info =
-            "<table>
-                <tr>
-                    <td><div title='Informa si actualmente se guarda la información de cada compra mediante Webpay' class='label label-info'>?</div> <b>Estado de Registros: </b></td>
-                    <td class='tbk_table_td'>{$estado}</td>
-                </tr>
-                <tr>
-                    <td><div title='Carpeta en el servidor en donde se guardan los archivos con la informacón de cada compra mediante Webpay' class='label label-info'>?</div> <b>Directorio de Registros: </b></td>
-                    <td class='tbk_table_td'>".stripslashes(json_encode($logs->log_dir))."</td>
-                </tr>
-                <tr>
-                    <td><div title='Cantidad de archivos que guardan la información de cada compra mediante Webpay' class='label label-info'>?</div> <b>Cantidad de Registros en Directorio: </b></td>
-                    <td class='tbk_table_td'>".json_encode($logs->logs_count->log_count)."</td>
-                </tr>
-                <tr>
-                    <td><div title='Lista los archivos archivos que guardan la información de cada compra mediante Webpay' class='label label-info'>?</div> <b>Listado de Registros Disponibles: </b></td>
-                    <td class='tbk_table_td'>{$logs_list}</td>
-                </tr>
-            </table>";
-
-    $plugininfo =
-                "<tr>
-                    <td><b>E-commerce</b></td>
-                    <td>{$res->server_resume->plugin_info->ecommerce}</td>
-                </tr>
-                <tr>
-                    <td><b>Version E-commerce</b></td>
-                    <td>{$res->server_resume->plugin_info->ecommerce_version}</td>
-                </tr>
-                <tr>
-                    <td><b>Version Plugin Webpay Instalada</b></td>
-                    <td>{$res->server_resume->plugin_info->current_plugin_version}</td>
-                </tr>
-                <tr>
-                    <td><b>Ultima Version disponible para este E-commerce</b></td>
-                    <td>{$res->server_resume->plugin_info->last_plugin_version}</td>
-                </tr>";
-
-    $tb_max_logs_days = $logs->config->max_logs_days;
-    $tb_max_logs_weight = $logs->config->max_log_weight;
-    if ($logs->config->status === true) {
-        $tb_check_regs = "<input type='checkbox' name='tb_reg_checkbox' id='tb_reg_checkbox' checked>";
-        $tb_btn_update = '<td><button type="button" name="tb_update" id="tb_update" class="btn btn-info">Actualizar Parametros</button></td>';
-    } else {
-        $tb_check_regs = "<input type='checkbox' name='tb_reg_checkbox' id='tb_reg_checkbox' >";
-        $tb_btn_update = '<td><button type="button" name="tb_update" id="tb_update" class="btn btn-info disabled">Actualizar Parametros</button></td>';
-    }
+$tb_max_logs_days = $logs->config->max_logs_days;
+$tb_max_logs_weight = $logs->config->max_log_weight;
+if ($logs->config->status === true) {
+    $tb_check_regs = "<input type='checkbox' name='tb_reg_checkbox' id='tb_reg_checkbox' checked>";
+    $tb_btn_update = '<td><button type="button" name="tb_update" id="tb_update" class="btn btn-info">Actualizar Parametros</button></td>';
+} else {
+    $tb_check_regs = "<input type='checkbox' name='tb_reg_checkbox' id='tb_reg_checkbox'>";
+    $tb_btn_update = '<td><button type="button" name="tb_update" id="tb_update" class="btn btn-info disabled">Actualizar Parametros</button></td>';
+}
 ?>
 
 <style media="screen">
@@ -243,7 +235,7 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
                                             class="label label-info">?</div> <b>Consistencias con llaves: </b>
                                     </td>
                                     <td class="tbk_table_td">
-                                        <?php echo classresp($res->validate_certificates->consistency->cert_vs_private_key); ?>
+                                        <?php echo showOkOrError($res->validate_certificates->consistency->cert_vs_private_key); ?>
                                     </td>
                                 </tr>
                                 <tr>
@@ -252,7 +244,7 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
                                             class="label label-info">?</div> <b>Validacion Codigo de commercio: </b>
                                     </td>
                                     <td class="tbk_table_td">
-                                        <?php echo classresp($res->validate_certificates->consistency->commerce_code_validate); ?>
+                                        <?php echo showOkOrError($res->validate_certificates->consistency->commerce_code_validate); ?>
                                     </td>
                                 </tr>
                             </table>
@@ -283,7 +275,7 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
                                         <b>Vigencia </b>
                                     </td>
                                     <td class="tbk_table_td">
-                                        <?php echo classresp($res->validate_certificates->cert_info->is_valid); ?>
+                                        <?php echo showOkOrError($res->validate_certificates->cert_info->is_valid); ?>
                                     </td>
                                 </tr>
                                 <tr>
@@ -331,7 +323,7 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
                                             class="label label-info">?</div> <b>Estado</b>
                                     </td>
                                     <td class="tbk_table_td">
-                                        <?php echo classresp($res->server_resume->php_version->status); ?>
+                                        <?php echo showOkOrError($res->server_resume->php_version->status); ?>
                                     </td>
                                 </tr>
                                 <tr>
@@ -357,7 +349,7 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
                                     <tr>
                                         <td><b>openssl</b></td>
                                         <td>
-                                            <?php echo classresp($res->php_extensions_status->openssl->status); ?>
+                                            <?php echo showOkOrError($res->php_extensions_status->openssl->status); ?>
                                         </td>
                                         <td>
                                             <?php echo $res->php_extensions_status->openssl->version; ?>
@@ -366,7 +358,7 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
                                     <tr>
                                         <td><b>SimpleXML</b></td>
                                         <td>
-                                            <?php echo classresp($res->php_extensions_status->SimpleXML->status); ?>
+                                            <?php echo showOkOrError($res->php_extensions_status->SimpleXML->status); ?>
                                         </td>
                                         <td>
                                             <?php echo $res->php_extensions_status->SimpleXML->version; ?>
@@ -375,25 +367,16 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
                                     <tr>
                                         <td><b>soap</b></td>
                                         <td>
-                                            <?php echo classresp($res->php_extensions_status->soap->status); ?>
+                                            <?php echo showOkOrError($res->php_extensions_status->soap->status); ?>
                                         </td>
                                         <td>
                                             <?php echo $res->php_extensions_status->soap->version; ?>
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td><b>mcrypt</b></td>
-                                        <td>
-                                            <?php echo classresp($res->php_extensions_status->mcrypt->status); ?>
-                                        </td>
-                                        <td>
-                                            <?php echo $res->php_extensions_status->mcrypt->version; ?>
-                                        </td>
-                                    </tr>
-                                    <tr>
                                         <td><b>dom</b></td>
                                         <td>
-                                            <?php echo classresp($res->php_extensions_status->dom->status); ?>
+                                            <?php echo showOkOrError($res->php_extensions_status->dom->status); ?>
                                         </td>
                                         <td>
                                             <?php echo $res->php_extensions_status->dom->version; ?>
@@ -405,21 +388,43 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
 
                         <div class="no-border">
                             <h3 class="menu-head">Validación Transacción</h3>
-                            <h4>General</h4>
+                            <h4>Petición a Transbank</h4>
+                            <table class="tbk_table_info">
+                                <tbody>
+                                    <tr>
+										<td class="tbk_table_td">
+                                            <button id="btn-check-transaction" class="btn btn-sm btn-primary">Verificar Conexión</button>
+                                        </td>
+									</tr>
+								</tbody>
+                            </table>
+                            <h4>Respuesta de Transbank</h4>
                             <table class="tbk_table_info">
                                 <tr>
                                     <td>
                                         <div title="Informa el estado de la comunicación con Transbank mediante método init_transaction"
                                             class="label label-info">?</div> <b>Estado: </b>
                                     </td>
-                                    <td class="tbk_table_td">
-                                        <?php echo classresp($res->validate_init_transaction->status->string); ?>
+                                    <td class='tbk_table_td' id="txt-transaction-status">
                                     </td>
                                 </tr>
-                            </table>
-                            <h4>Respuesta</h4>
-                            <table>
-                                <?php echo $respuesta_init; ?>
+                                <tr>
+                                    <td>
+                                        <div title='URL entregada por Transbank para realizar la transacción' class='label label-info'>?</div>
+                                        <b>URL: </b>
+                                    </td>
+                                    <td class='tbk_table_trans' id="txt-transaction-url">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div title='Token entregada por Transbank para realizar la transacción' class='label label-info'>?</div>
+                                        <b>Token: </b>
+                                    </td>
+                                    <td class='tbk_table_trans'>
+                                        <code id="txt-transaction-token"></code>
+                                    </td>
+                                </tr>
                             </table>
                         </div>
 
@@ -517,8 +522,8 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
                 <!--FIN modalbody-->
             </div>
             <div class="modal-footer">
-                <button type=button class="btn btn-danger btn-lg" id="boton_pdf">Crear PDF</button>
-                <button type=button class="btn btn-danger btn-lg" id="boton_php_info">Crear PHP info</button>
+                <a class="btn btn-danger btn-lg" id="boton_pdf" href="<?php echo $urlCreaPdfReport; ?>" target="_blank">Crear PDF</a>
+                <a class="btn btn-danger btn-lg" id="boton_php_info" href="<?php echo $urlCreaPdfPhpInfo; ?>" target="_blank">Crear PHP info</a>
                 <button type="button" class="btn btn-default btn-lg" data-dismiss="modal">Cerrar</button>
             </div>
         </div>
@@ -537,6 +542,7 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
             offText: "No",
             animate: true
         };
+
         $('#tb_reg_checkbox').bootstrapSwitch(options);
 
         $('#tb_commerce_mod_info').hide();
@@ -547,7 +553,6 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
             $('.modal .modal-body').css('min-height', $(window).height() * 0.6);
         });
 
-        //$('#tb_full_obj').hide();
         $('#tb_php_info').hide();
         $('#tb_logs').hide();
         $('#boton_php_info').hide();
@@ -576,93 +581,36 @@ include_once(dirname( dirname(__FILE__) ) . '/library/LogHandler.php');
             }
         });
 
-        function creaPdf(documentValue) {
-
-            var iframe = document.createElement("iframe");
-            iframe.name = "myTarget";
-            iframe.style.display = "none";
-            document.body.appendChild(iframe);
-
-            var ob = <?php echo json_encode($res); ?>;
-            var data = {"item":JSON.stringify(ob), 'document': documentValue};
-
-            var form = document.createElement("form"):
-            form.action = "../plugins/vmpayment/transbank_webpay/transbank_webpay/fields/creapdf.php";
-            form.method = 'POST';
-            form.target = iframe.name;
-            form.style.display = "none";
-
-            for(var name in data) {
-                var node = document.createElement("input");
-                node.name  = name;
-                node.value = data[name].toString();
-                form.appendChild(node.cloneNode());
-            }
-
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
-        }
-
-        $('#boton_pdf').click(function(evt) {
-            creaPdf('report');
-            evt.preventDefault();
-        });
-
-        $('#boton_php_info').click(function(evt) {
-            creaPdf('php_info');
-            evt.preventDefault();
-        });
-
-        function cargaConfig(data) {
-            $.ajax({
-                url: '../plugins/vmpayment/webpay/webpay/fields/cargaconfig.php',
-                type: 'POST',
-                data: data,
-                dataType: 'json',
-                success: function(data, status){
-                    $('#maininfo').load(document.URL + '#maininfo');
-                },
-                error: function(e){
-                    $('#maininfo').load(document.URL + '#maininfo');
-                }
-            });
-        }
-
         $('#tb_update').click(function(evt) {
             var max_days = $("#tb_regs_days").val();
             var max_weight = $("#tb_regs_weight").val();
-            var data = {
-                status: true,
-                max_days: max_days,
-                max_weight: max_weight,
-                update: true
-            };
-            cargaConfig(data);
-            evt.preventDefault();
-        });
-
-        $('#tb_reg_checkbox').on('switchChange.bootstrapSwitch', function(evt) {
-            var max_days = $("#tb_regs_days").val();
-            var max_weight = $("#tb_regs_weight").val();
-            var status = false;
-            if ($('#tb_reg_checkbox').is(':checked')) {
-                status = true;
-                $('#tb_update').removeClass('disabled');
-            } else {
-                $('#tb_update').addClass('disabled');
-            }
+            var status = $('#tb_reg_checkbox').is(':checked');
             var data = {
                 status: status,
                 max_days: max_days,
-                max_weight: max_weight,
-                update: true
+                max_weight: max_weight
             };
-            cargaConfig(data);
+            $.get("<?php echo $urlUpdateConfig; ?>", data);
             evt.preventDefault();
         });
 
-        $('#maininfo').load(document.URL +  ' #maininfo');
+        $('#btn-check-transaction').click(function(evt) {
+            var el = $(this);
+            el.text('Verificar conexión...');
+            $.getJSON("<?php echo $urlCheckTransaction; ?>", function(resp) {
+                el.text('Verificar conexión');
+                var status = '';
+                if (resp.status.string == 'OK') {
+                    status = "<span class='label label-success'>OK</span>";
+                } else {
+                    status = "<span class='label label-danger'>Error</span>";
+                }
+                $('#txt-transaction-status').empty().append(status);
+                $('#txt-transaction-url').text(resp.response.url || resp.response.error);
+                $('#txt-transaction-token').text(resp.response.token_ws || resp.response.detail);
+            });
+            evt.preventDefault();
+        });
 })
 
 </script>

@@ -42,7 +42,6 @@ class HealthCheck {
             'openssl',
             'SimpleXML',
             'soap',
-            'mcrypt',
             'dom'
         );
     }
@@ -83,7 +82,7 @@ class HealthCheck {
 
     // valida version de php
     private function getValidatephp(){
-        if (version_compare(phpversion(), '7.1.24', '<=') and version_compare(phpversion(), '5.5.0', '>=')) {
+        if (version_compare(phpversion(), '7.2.1', '<=') and version_compare(phpversion(), '5.5.0', '>=')) {
             $this->versioninfo = array(
                 'status' => 'OK',
                 'version' => phpversion()
@@ -244,34 +243,36 @@ class HealthCheck {
         phpinfo();
         $info = ob_get_contents();
         ob_end_clean();
+
         $newinfo = strstr($info, '<table>');
         $newinfo = strstr($newinfo, '<h1>PHP Credits</h1>',true);
         $return = array('string' => array('content' => str_replace('</div></body></html>','',$newinfo)));
+
         return $return;
     }
 
-    private function setInitTransaction(){
+    public function setInitTransaction(){
         $webpay = new TransbankSdkWebpay($this->config);
-        $amount = 9990;
+        $amount = 990;
         $buyOrder = "_Healthcheck_";
         $sessionId = uniqid();
         $returnUrl = "https://webpay3gint.transbank.cl/filtroUnificado/initTransaction";
         $finalUrl = "https://webpay3gint.transbank.cl/filtroUnificado/initTransaction";
-        $this->result = $webpay->initTransaction($amount, $sessionId, $buyOrder, $returnUrl, $finalUrl);
-        if ($this->result) {
-            if (!empty($this->result["error"]) && isset($this->result["error"])) {
+        $result = $webpay->initTransaction($amount, $sessionId, $buyOrder, $returnUrl, $finalUrl);
+        if ($result) {
+            if (!empty($result["error"]) && isset($result["error"])) {
                 $status = 'Error';
             }else{
                 $status = 'OK';
             }
         } else {
-            if (array_key_exists('error', $this->result)) {
+            if (array_key_exists('error', $result)) {
                 $status =  "Error";
             }
         }
         $response = array(
             'status' => array('string' => $status),
-            'response' => preg_replace('/<!--(.*)-->/Uis', '', $this->result)
+            'response' => preg_replace('/<!--(.*)-->/Uis', '', $result)
         );
         return $response;
     }
@@ -280,7 +281,7 @@ class HealthCheck {
     private function getFullResume(){
         $this->fullResume = array(
             'validate_certificates' => $this->getValidateCertificates(),
-            'validate_init_transaction' => $this->setInitTransaction(),
+            //'validate_init_transaction' => $this->setInitTransaction(), esto se realiza de manera manual
             'server_resume' => $this->getServerResume(),
             'php_extensions_status'  => $this->getExtensionsValidate(),
             'commerce_info' => $this->getCommerceInfo(),

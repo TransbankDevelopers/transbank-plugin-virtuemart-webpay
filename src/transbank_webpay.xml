@@ -103,9 +103,7 @@
                 <field name="status_success" type="vmorderstate" scope="com_virtuemart" default="C" label="Orden pagada" />
                 <field name="status_canceled" type="vmorderstate" scope="com_virtuemart" default="D" label="Orden fallida" />
 
-                <field type="spacer" default="" level="level1" />
-
-                <field type="MenuTest" default="" />
+                <field type="ModalInformation" default="" />
 
             </fieldset>
 		</fields>

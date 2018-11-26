@@ -20,11 +20,26 @@ if (!class_exists('LogHandler')) {
     require_once(DIR_SYSTEM.'library/LogHandler.php');
 }
 
+if (!class_exists('HealthCheck')) {
+    require_once(DIR_SYSTEM.'library/HealthCheck.php');
+}
+
+if (!class_exists('ReportPdfLog')) {
+    require_once(DIR_SYSTEM.'library/ReportPdfLog.php');
+}
+
+if (!class_exists('ConfigProvider')) {
+    require_once(DIR_SYSTEM.'library/ConfigProvider.php');
+}
+
 /**
  * Transbank Webpay Payment plugin implementation
  * @autor vutreras (victor.utreras@continuum.cl)
  */
 class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
+
+    const PLUGIN_VERSION = '2.4.0'; //version of plugin payment
+    const PLUGIN_CODE = 'transbank_webpay'; //code of plugin for virtuemart
 
     private $paymentTypeCodearray = array(
         "VD" => "Venta Debito",
@@ -42,11 +57,21 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
 		$this->_tablepkey = 'id';
         $this->_tableId = 'id';
 
-        if ($config['name'] == TransbankSdkWebpay::PLUGIN_CODE) {
+        if ($config['name'] == self::PLUGIN_CODE) {
+
             $this->log = new LogHandler();
+
             $varsToPush = $this->getVarsToPush();
             $this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
             $this->setCryptedFields(array('key'));
+
+            if (isset($_GET['creaPdf'])) {
+                $this->creaPdf();
+            } else if (isset($_GET['updateConfig'])) {
+                $this->updateConfig();
+            } else if (isset($_GET['checkTransaction'])) {
+                $this->checkTransaction();
+            }
         }
     }
 
@@ -557,5 +582,55 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
     public function getConfig($key) {
         $method = $this->getMethodPayment();
         return $method != NULL ? $method->$key : NULL;
+    }
+
+
+    // Actions
+
+    private function getAllConfig() {
+        $config = array(
+            'MODO' => $this->getConfig("ambient"),
+            'COMMERCE_CODE' => $this->getConfig("id_comercio"),
+            'PUBLIC_CERT' => $this->getConfig("cert_public"),
+            'PRIVATE_KEY' => $this->getConfig("key_secret"),
+            'WEBPAY_CERT' => $this->getConfig("cert_transbank"),
+            'ECOMMERCE' => 'virtuemart'
+        );
+        return $config;
+    }
+
+    private function creaPdf() {
+
+        $config = $this->getAllConfig();
+
+        $healthcheck = new HealthCheck($config);
+        $json = $healthcheck->printFullResume();
+
+        $document = $_GET["document"];
+        $temp = json_decode($json);
+        if ($document == "report"){
+            unset($temp->php_info);
+        } else {
+            $temp = array('php_info' => $temp->php_info);
+        }
+
+        $rl = new ReportPdfLog($document);
+        $rl->getReport(json_encode($temp));
+        die;
+    }
+
+    private function updateConfig() {
+        $logHandler = new LogHandler();
+        $logHandler->setLockStatus($_GET['status'] == 'true' ? true : false);
+        $logHandler->setnewconfig((integer)$_GET['max_days'], (integer)$_GET['max_weight']);
+        die;
+    }
+
+    private function checkTransaction() {
+        $config = $this->getAllConfig();
+        $healthcheck = new HealthCheck($config);
+        $response = $healthcheck->setInitTransaction();
+        echo json_encode($response);
+        die;
     }
 }

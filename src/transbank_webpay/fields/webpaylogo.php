@@ -14,9 +14,6 @@ class JFormFieldWebpayLogo extends JFormField {
 	var $type = 'WebpayLogo';
 
 	protected function getInput() {
-
-		//JHtml::_('behavior.colorpicker');
-
 		vmJsApi::addJScript( '/plugins/vmpayment/webpay/webpay/assets/js/admin.js');
 		$url = "https://www.transbank.cl/";
 		$logo = '<img src="https://www.transbank.cl/public/img/LogoWebpay.png" width="100" height="91"/>';
