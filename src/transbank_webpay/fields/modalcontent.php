@@ -55,11 +55,11 @@ $logs = json_decode($loghandler->getResume());
 $healthCheck = new HealthCheck($config);
 $res = json_decode($healthCheck->printFullResume());
 
-function showOkOrError($var){
-    if ($var == "OK") {
+function showOkOrError($status){
+    if ($status == "OK") {
         return "<span class='label label-success'>OK</span>";
     }else{
-        return "<span class='label label-danger'>{$var}</span>";
+        return "<span class='label label-danger'>{$status}</span>";
     }
 }
 
@@ -76,9 +76,9 @@ if (isset($logs->last_log->log_content)) {
 }
 
 if ($logs->config->status === false ) {
-    $estado = "<span class='label label-warning'>Desactivado sistema de Registros</span>";
+    $status = "<span class='label label-warning'>Desactivado sistema de Registros</span>";
 }else{
-    $estado = "<span class='label label-success'>Activado sistema de Registros</span>";
+    $status = "<span class='label label-success'>Activado sistema de Registros</span>";
 }
 
 $logs_list = "<ul>";
@@ -92,19 +92,31 @@ $logs_list .= "</ul>";
 $logs_main_info =
         "<table>
             <tr>
-                <td><div title='Informa si actualmente se guarda la información de cada compra mediante Webpay' class='label label-info'>?</div> <b>Estado de Registros: </b></td>
-                <td class='tbk_table_td'>{$estado}</td>
+                <td>
+                    <div title='Informa si actualmente se guarda la información de cada compra mediante Webpay' class='label label-info'>?</div>
+                    <b>Estado de Registros: </b>
+                </td>
+                <td class='tbk_table_td'>{$status}</td>
             </tr>
             <tr>
-                <td><div title='Carpeta en el servidor en donde se guardan los archivos con la informacón de cada compra mediante Webpay' class='label label-info'>?</div> <b>Directorio de Registros: </b></td>
+                <td>
+                    <div title='Carpeta en el servidor en donde se guardan los archivos con la informacón de cada compra mediante Webpay' class='label label-info'>?</div>
+                    <b>Directorio de Registros: </b>
+                </td>
                 <td class='tbk_table_td'>".stripslashes(json_encode($logs->log_dir))."</td>
             </tr>
             <tr>
-                <td><div title='Cantidad de archivos que guardan la información de cada compra mediante Webpay' class='label label-info'>?</div> <b>Cantidad de Registros en Directorio: </b></td>
+                <td>
+                    <div title='Cantidad de archivos que guardan la información de cada compra mediante Webpay' class='label label-info'>?</div>
+                    <b>Cantidad de Registros en Directorio: </b>
+                </td>
                 <td class='tbk_table_td'>".json_encode($logs->logs_count->log_count)."</td>
             </tr>
             <tr>
-                <td><div title='Lista los archivos archivos que guardan la información de cada compra mediante Webpay' class='label label-info'>?</div> <b>Listado de Registros Disponibles: </b></td>
+                <td>
+                    <div title='Lista los archivos archivos que guardan la información de cada compra mediante Webpay' class='label label-info'>?</div>
+                    <b>Listado de Registros Disponibles: </b>
+                </td>
                 <td class='tbk_table_td'>{$logs_list}</td>
             </tr>
         </table>";
@@ -507,15 +519,13 @@ if ($logs->config->status === true) {
                                     <?php echo $log_file_regs; ?>
                                 </td>
                             </tr>
-                            <tr>
-                                <td><b></b></td>
-                                <td></td>
-                            </tr>
                         </table>
                         <br>
                         <b>Contenido último Log: </b>
                         <div class="log_content">
-                            <pre><code><?php echo stripslashes((string)$res_logcontent); ?></code></pre>
+                            <pre>
+                                <code><?php echo stripslashes((string)$res_logcontent); ?></code>
+                            </pre>
                         </div>
                     </div>
                 </div>
