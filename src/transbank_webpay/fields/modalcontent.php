@@ -17,8 +17,8 @@ if (is_Array($cid)) {
 }
 
 $baseUrl = "index.php?option=com_virtuemart&view=paymentmethod&task=edit&cid[]={$virtuemart_paymentmethod_id}";
-$urlCreaPdfReport = $baseUrl . '&creaPdf=true&document=report';
-$urlCreaPdfPhpInfo = $baseUrl . '&creaPdf=true&document=php_info';
+$urlCreaPdfReport = $baseUrl . '&createPdf=true&document=report';
+$urlCreaPdfPhpInfo = $baseUrl . '&createPdf=true&document=php_info';
 $urlUpdateConfig = $baseUrl . '&updateConfig=true';
 $urlCheckTransaction = $baseUrl . '&checkTransaction=true';
 
@@ -590,7 +590,11 @@ if ($logs->config->status === true) {
                 max_days: max_days,
                 max_weight: max_weight
             };
-            $.get("<?php echo $urlUpdateConfig; ?>", data);
+            var el = $(this);
+            el.text('Actualizar Parametros...');
+            $.get("<?php echo $urlUpdateConfig; ?>", data, function(resp) {
+                el.text('Actualizar Parametros');
+            });
             evt.preventDefault();
         });
 

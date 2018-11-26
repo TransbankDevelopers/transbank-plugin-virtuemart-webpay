@@ -34,9 +34,6 @@ class TransbankSdkWebpay {
         $result = array();
 		try{
             $initResult = $this->transaction->initTransaction($amount, $buyOrder, $sessionId, $returnUrl, $finalUrl);
-
-            $this->log->logInfo(json_encode($initResult));
-
             if (isset($initResult) && isset($initResult->url) && isset($initResult->token)) {
                 $result = array(
 					"url" => $initResult->url,

@@ -65,8 +65,8 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
             $this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
             $this->setCryptedFields(array('key'));
 
-            if (isset($_GET['creaPdf'])) {
-                $this->creaPdf();
+            if (isset($_GET['createPdf'])) {
+                $this->createPdf();
             } else if (isset($_GET['updateConfig'])) {
                 $this->updateConfig();
             } else if (isset($_GET['checkTransaction'])) {
@@ -599,7 +599,7 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
         return $config;
     }
 
-    private function creaPdf() {
+    private function createPdf() {
 
         $config = $this->getAllConfig();
 
