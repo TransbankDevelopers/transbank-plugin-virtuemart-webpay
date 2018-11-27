@@ -1,8 +1,6 @@
 <?php
 require_once('tcpdf/TCPDF/tcpdf.php');
 
-include_once('LogHandler.php');
-
 class ReportPdf {
 
     var $buffer;
