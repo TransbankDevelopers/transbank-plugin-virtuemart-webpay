@@ -38,7 +38,6 @@ if (!class_exists('ConfigProvider')) {
  */
 class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
 
-    const PLUGIN_VERSION = '2.4.0'; //version of plugin payment
     const PLUGIN_CODE = 'transbank_webpay'; //code of plugin for virtuemart
 
     private $paymentTypeCodearray = array(
