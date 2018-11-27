@@ -576,7 +576,7 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
 
     private function getAllConfig() {
         $config = array(
-            'MODO' => $this->getConfig("ambient"),
+            'MODO' => $this->getConfig("ambiente"),
             'COMMERCE_CODE' => $this->getConfig("id_comercio"),
             'PUBLIC_CERT' => $this->getConfig("cert_public"),
             'PRIVATE_KEY' => $this->getConfig("key_secret"),

@@ -25,29 +25,18 @@ $urlCheckTransaction = $baseUrl . '&checkTransaction=true';
 $confProv = new ConfigProvider();
 $configBd = $confProv->getConfig();
 
-$config = null;
-
-if (!isset($configBd['ambiente']) or $configBd['ambiente'] == "" or
-    $configBd['ambiente'] == null or $configBd['ambiente'] == 'INTEGRACION') {
-    include_once(dirname( dirname(__FILE__) ) . '/library/Certificates.php');
-    $config = array(
-        'MODO' => $certificate['environment'],
-        'COMMERCE_CODE' => $certificate['commerce_code'],
-        'PUBLIC_CERT' => $certificate['public_cert'],
-        'PRIVATE_KEY' => $certificate['private_key'],
-        'WEBPAY_CERT' => $certificate['webpay_cert'],
-        'ECOMMERCE' => 'virtuemart'
-    );
-} else {
-    $config = array(
-        'MODO' => $configBd['ambiente'],
-        'COMMERCE_CODE' => $configBd['id_comercio'],
-        'PUBLIC_CERT' => $configBd['cert_public'],
-        'PRIVATE_KEY' => $configBd['key_secret'],
-        'WEBPAY_CERT' => $configBd['cert_transbank'],
-        'ECOMMERCE' => 'virtuemart'
-    );
+if (!isset($configBd['ambiente']) or trim($configBd['ambiente']) == "") {
+    $configBd = $confProv->getConfigFromXml();
 }
+
+$config = array(
+    'MODO' => $configBd['ambiente'],
+    'COMMERCE_CODE' => $configBd['id_comercio'],
+    'PUBLIC_CERT' => $configBd['cert_public'],
+    'PRIVATE_KEY' => $configBd['key_secret'],
+    'WEBPAY_CERT' => $configBd['cert_transbank'],
+    'ECOMMERCE' => 'virtuemart'
+);
 
 $loghandler = new LogHandler();
 $logs = json_decode($loghandler->getResume());

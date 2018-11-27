@@ -19,7 +19,7 @@
                     <option value="INTEGRACION">INTEGRACIÓN</option>
                     <option value="PRODUCCION">PRODUCCIÓN</option>
                 </field>
-                <field name="id_comercio" type="text" size="50" label="Código de Comercio" required="true" default="597020000541" />
+                <field name="id_comercio" type="text" size="50" label="Código de Comercio" required="true" default="597020000540" />
                 <field name="key_secret" type="textarea" rows="5" cols="100" label="Llave privada" default="
                 -----BEGIN RSA PRIVATE KEY-----
                 MIIEowIBAAKCAQEAvuNgBxMAOBlNI7Fw5sHGY1p6DB6EMK83SL4b1ZILSJs/8/MC
@@ -69,7 +69,7 @@
                 p/3Sb1e9FABJhZkAQU2KGMot/b/ncePKHvfSBzQCwbuXWPzrF+B/4ZxGMAkgxtmK
                 WnWrkcr2qakpHzERn8irKBPhvlifW5sdMH4tz/4SLVwkek24Sp8CVmIIgQR3nyR9
                 8hi1+Iz4O1FcIQtx17OvhWDXhfEsG0HWygc5KyTqCkVBClVsJPRvoCSTORvukcuW
-                18gbYO3VlxwXnvzLk4aptC7/8Jq83XY8o0fn+A==
+                18gbYO3VlxwXnvzLk4aptC7/8Jq83XY8o0fn+AMM==
                 -----END CERTIFICATE-----" />
 
                 <field name="cert_transbank" type="textarea" rows="5" cols="100" label="Certificado Transbank" default="
