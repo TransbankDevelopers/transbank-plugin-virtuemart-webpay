@@ -1,0 +1,23 @@
+version: '2'
+services:
+  db:
+    image: 'mysql:5.5'
+    container_name: 'webpay_virtuemart_db'
+    environment:
+      - MYSQL_ROOT_PASSWORD=admin
+  web:
+    container_name: 'webpay_virtuemart_web'
+    build:
+      context: .
+      dockerfile: Dockerfile
+    links:
+      - db
+    ports:
+      - '8081:80'
+    depends_on:
+      - db
+    environment:
+      - JOOMLA_DB_PASSWORD=admin
+      - JOOMLA_ADMIN_USER=admin
+      - JOOMLA_ADMIN_PASSWORD=password
+      - JOOMLA_ADMIN_EMAIL=admin@example.com

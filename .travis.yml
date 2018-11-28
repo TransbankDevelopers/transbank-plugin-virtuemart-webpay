@@ -1,0 +1,20 @@
+language: php
+php:
+- '5.5'
+
+script: echo "We don't have tests yet :("
+
+before_deploy:
+- sh config.sh
+- sh package.sh
+
+deploy:
+  provider: releases
+  name: "$TRAVIS_TAG"
+  api_key:
+    secure: u8lWFRG+vgmvMpneck6/vJV37yd9tgWUUtqP7XDpFC6K7GUJ2mBtMbyQuv2hTHYl+Jn4SxSw3T007+g0GmYqMUaCQ2NPluDj8SiZEJ95kJm7GiRC0ZaSxeUt1ufW595U4rRJMnq+iBmTcsQLWf+f8U7m/FfPiLgw7f/ZjDO62c/eiOA86i3V5vLq8Btlm+E0C2BZAhyaLn+N3VE728ICGFW1c/YGxIRmNF7HUtmbRuRl2stpMqJXGBNqPn3COOv6TQF6PeyGdZYr3YICxqk3ts6RVsQF/dkeDEVjj7sjBAMOHoCXIClbQB+R9+DKdisc90JwotBsVf9ePM5qrq51ms+BdUa96PYDTQ1f3KR6OEPjT+m6RWsf9K4mdwY1qhT1F0WVj23i8cXvsvedk5f34Vt//GZcwpGFg0EIsXP8BFSH+cnDCXpSRZ5Pq+n97cEpRla4OkyyAl54kaNKJ0TekARYiVcBENBJoQ0RnjL2Lb7rdD+9DYXDPxVT/dWGo/BUxfj/f4ZMSz91ZxeMN2U51hm5kRVIdtxIvtwa/uzcVwUxY4AtXl9xb5qxA7k1q47IQjQpFDe+41qzhuDj3zVLdo3BWEymY1AVNvX+dNDytLSNl+sDPERZl8T09RJmn3y7CLkDUgYR5BoDyzB0AW6Jh2PHUDiUEuyTScYXeL1YNYQ=
+  file: "plugin-transbank-webpay-virtuemart3-$TRAVIS_TAG.zip"
+  skip_cleanup: true
+  on:
+    repo: TransbankDevelopers/transbank-plugin-virtuemart-webpay
+    tags: true
