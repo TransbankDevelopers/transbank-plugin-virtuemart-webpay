@@ -179,12 +179,12 @@ class HealthCheck {
     3 => PatPass
     4 => OnePay
     */
-    private function getPluginLastVersion($ecommerce, $currentversion){
+    private function getPluginLastVersion($ecommerce, $currentversion) {
         return 'Indefinido';
     }
 
     // lista y valida extensiones/ modulos de php en servidor ademas mostrar version
-    private function getExtensionsValidate(){
+    private function getExtensionsValidate() {
         foreach ($this->extensions as $value) {
             $this->resExtensions[$value] = $this->getCheckExtension($value);
         }
@@ -193,7 +193,6 @@ class HealthCheck {
 
     // crea resumen de informacion del servidor. NO incluye a PHP info
     private function getServerResume() {
-        // arma array de despliegue
         $this->resume = array(
             'php_version' => $this->getValidatephp(),
             'server_version' => array('server_software' => $_SERVER['SERVER_SOFTWARE']),
@@ -215,7 +214,7 @@ class HealthCheck {
     }
 
     // guarda en array informacion de funcion phpinfo
-    private function getPhpInfo(){
+    private function getPhpInfo() {
         ob_start();
         phpinfo();
         $info = ob_get_contents();
