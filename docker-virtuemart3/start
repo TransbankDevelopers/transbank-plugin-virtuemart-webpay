@@ -3,9 +3,9 @@ docker-compose up -d && \
 echo "
 ========================================
 
-      🌎 Web server: http://localhost/
+      🌎 Web server: http://localhost:8081/
 
-      ⚙️ Admin: http://localhost/administrator/
+      ⚙️ Admin: http://localhost:8081/administrator/
 
             user: admin
             password: password
