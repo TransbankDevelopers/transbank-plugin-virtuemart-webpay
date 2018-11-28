@@ -85,7 +85,7 @@ $logs_main_info =
                     <div title='Informa si actualmente se guarda la información de cada compra mediante Webpay' class='label label-info'>?</div>
                     <b>Estado de Registros: </b>
                 </td>
-                <td class='tbk_table_td'>{$status}</td>
+                <td class='tbk_table_td' id='log-status'>{$status}</td>
             </tr>
             <tr>
                 <td>
@@ -593,6 +593,11 @@ if ($logs->config->status === true) {
             el.text('Actualizar Parametros...');
             $.get("<?php echo $urlUpdateConfig; ?>", data, function(resp) {
                 el.text('Actualizar Parametros');
+                if (status === false ) {
+                    $('#log-status').empty().append("<span class='label label-warning'>Desactivado sistema de Registros</span>");
+                }else{
+                    $('#log-status').empty().append("<span class='label label-success'>Activado sistema de Registros</span>");
+                }
             });
             evt.preventDefault();
         });
