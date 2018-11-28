@@ -80,7 +80,7 @@ $logs_list .= "</ul>";
 
 $logs_main_info =
         "<table>
-            <tr>
+            <tr style='display: none;'>
                 <td>
                     <div title='Informa si actualmente se guarda la información de cada compra mediante Webpay' class='label label-info'>?</div>
                     <b>Estado de Registros: </b>
@@ -440,7 +440,7 @@ if ($logs->config->status === true) {
                 </div>
                 <div class="tab-pane fade" id="tb_logs">
                     <div class="container-fluid">
-                        <div class="form_validate">
+                        <div class="form_validate" style="display:none;">
                             <h3 class="menu-head">Configuracion</h3>
                             <table class="tbk_table_info">
                                 <tr>
