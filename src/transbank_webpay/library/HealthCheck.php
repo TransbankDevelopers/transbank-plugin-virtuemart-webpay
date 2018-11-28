@@ -3,7 +3,6 @@ require_once('TransbankSdkWebpay.php');
 
 class HealthCheck {
 
-    var $phpinfo;
     var $publicCert;
     var $privateKey;
     var $webpayCert;
@@ -25,12 +24,6 @@ class HealthCheck {
         $this->privateKey = $config['PRIVATE_KEY'];
         $this->webpayCert = $config['WEBPAY_CERT'];
         $this->ecommerce = $config['ECOMMERCE'];
-
-        $this->resume = null;
-        $this->fullResume = null;
-        $this->versioninfo = null;
-        $this->certificates = null;
-
         // extensiones necesarias
         $this->extensions = array(
             'openssl',
@@ -180,12 +173,12 @@ class HealthCheck {
 
     // arma array con informacion del ultimo plugin compatible con el ecommerce
     /*
-        vers_product:
-        1 => WebPay Soap
-        2 => WebPay REST
-        3 => PatPass
-        4 => OnePay
-        */
+    vers_product:
+    1 => WebPay Soap
+    2 => WebPay REST
+    3 => PatPass
+    4 => OnePay
+    */
     private function getPluginLastVersion($ecommerce, $currentversion){
         return 'Indefinido';
     }
@@ -199,7 +192,7 @@ class HealthCheck {
     }
 
     // crea resumen de informacion del servidor. NO incluye a PHP info
-    private function getServerResume(){
+    private function getServerResume() {
         // arma array de despliegue
         $this->resume = array(
             'php_version' => $this->getValidatephp(),
@@ -210,7 +203,7 @@ class HealthCheck {
     }
 
     // crea array con la informacion de comercio para posteriormente exportarla via json
-    private function getCommerceInfo(){
+    private function getCommerceInfo() {
         $result = array(
             'environment' => $this->environment,
             'commerce_code' => $this->commerceCode,
@@ -275,7 +268,6 @@ class HealthCheck {
         return false;
     }
 
-    //funciones de impresion
     // imprime informacion de comercio y llaves
     public function printCommerceInfo() {
         return json_encode($this->getCommerceInfo());
