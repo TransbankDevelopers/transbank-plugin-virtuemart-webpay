@@ -44,6 +44,11 @@ class ConfigProvider {
                     $v = str_replace('"', '', $kv[1]);
                     $v = str_replace("\\r\\n","\n", $v);
                     $v = str_replace("\\","", $v);
+                    $v = str_replace(" ","", $v);
+                    $v = str_replace("-----BEGINRSAPRIVATEKEY-----","-----BEGIN RSA PRIVATE KEY-----", $v);
+                    $v = str_replace("-----ENDRSAPRIVATEKEY-----","-----END RSA PRIVATE KEY-----", $v);
+                    $v = str_replace("-----BEGINCERTIFICATE-----","-----BEGIN CERTIFICATE-----", $v);
+                    $v = str_replace("-----ENDCERTIFICATE-----","-----END CERTIFICATE-----", $v);
                     $this->_config[$k] = trim($v);
                 }
             } catch (Exception $e) {
@@ -67,6 +72,11 @@ class ConfigProvider {
                     if (!empty($k)) {
                         $v = str_replace("\\r\\n","\n", $v);
                         $v = str_replace("\\","", $v);
+                        $v = str_replace(" ","", $v);
+                        $v = str_replace("-----BEGINRSAPRIVATEKEY-----","-----BEGIN RSA PRIVATE KEY-----", $v);
+                        $v = str_replace("-----ENDRSAPRIVATEKEY-----","-----END RSA PRIVATE KEY-----", $v);
+                        $v = str_replace("-----BEGINCERTIFICATE-----","-----BEGIN CERTIFICATE-----", $v);
+                        $v = str_replace("-----ENDCERTIFICATE-----","-----END CERTIFICATE-----", $v);
                         $this->_configXml[$k] = trim($v);
                     }
                 }
