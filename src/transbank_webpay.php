@@ -56,6 +56,10 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
 		$this->_tablepkey = 'id';
         $this->_tableId = 'id';
 
+        $this->log = new LogHandler();
+
+        $this->confProv = new ConfigProvider();
+
         if ($config['name'] == self::PLUGIN_CODE) {
 
             $varsToPush = $this->getVarsToPush();
@@ -478,7 +482,7 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
     function plgVmDeclarePluginParamsPaymentVM3(&$data) {
         $ret = $this->declarePluginParams('payment', $data);
         if ($ret == 1) {
-            $this->logInfo('Configuracion guardada correctamente');
+            $this->log->logInfo('Configuracion guardada correctamente');
         }
         return $ret;
     }
@@ -566,8 +570,13 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
      * return configuration for the plugin
      */
     public function getConfig($key) {
-        $method = $this->getMethodPayment();
-        return $method != NULL ? $method->$key : NULL;
+        $v = $this->confProv->getConfig($key);
+        if ($key != 'cert_transbank') {
+            if (!isset($v) || $v == "") {
+                $v = $this->confProv->getConfigFromXml($key);
+            }
+        }
+        return $v;
     }
 
 
