@@ -4,6 +4,14 @@ Todos los cambios notables a este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 y este proyecto adhiere a [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.0.5] - 2018-11-29
+### Changed
+- Se corrigen varios problemas internos del plugin para entregar una mejor experiencia en virtuemart con Webpay
+- Se mejoran las validaciones internas del proceso de pago.
+- Se mejora la creación del pdf de diagnóstico.
+- Se elimina la comprobación de la extensión mcrypt dado que ya no es necesaria por el plugin.
+- Ahora soporta php 7.2.1
+
 ## [2.0.4] - 2018-05-28
 ### Changed
 - Se modifica certificado de servidor para ambiente de integracion.
