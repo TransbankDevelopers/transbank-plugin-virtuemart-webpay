@@ -179,6 +179,8 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
             return false;
         }
 
+        $config = $this->getAllConfig();
+
         $session = JFactory::getSession();
         $paymentOk = $session->get('webpay_payment_ok');
         $orderId = $session->get('webpay_order_id');
