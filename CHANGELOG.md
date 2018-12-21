@@ -4,6 +4,10 @@ Todos los cambios notables a este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 y este proyecto adhiere a [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.0.6] - 2018-12-21
+### Fixed
+- Corrige validación de certificados
+
 ## [2.0.5] - 2018-11-29
 ### Changed
 - Se corrigen varios problemas internos del plugin para entregar una mejor experiencia en virtuemart con Webpay
