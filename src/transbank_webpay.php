@@ -32,6 +32,10 @@ if (!class_exists('ConfigProvider')) {
     require_once(DIR_SYSTEM.'library/ConfigProvider.php');
 }
 
+if (!class_exists('\Transbank\Telemetry\PluginVersion')) {
+    require_once(DIR_SYSTEM.'library/PluginVersion.php');
+}
+
 /**
  * Transbank Webpay Payment plugin implementation
  * @autor vutreras (victor.utreras@continuum.cl)
@@ -70,10 +74,18 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
                 $this->createPdf();
             } else if (isset($_GET['updateConfig'])) {
                 $this->updateConfig();
+                $this->sendPluginVersion();
+                print_r($this->getAllConfig(), true);
             } else if (isset($_GET['checkTransaction'])) {
                 $this->checkTransaction();
             }
         }
+    }
+    
+    public function plgVmOnBeforeUserfieldSave( $plgName , &$data, &$field )
+    {
+        field
+        die('hola');
     }
 
     /**
@@ -644,5 +656,12 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
         $response = $healthcheck->setInitTransaction();
         echo json_encode($response);
         die;
+    }
+    protected function sendPluginVersion()
+    {
+        $config = $this->getAllConfig();
+        $healthcheck = new HealthCheck($config);
+        $pluginInfo = $healthcheck->getPluginInfo($config['ECOMMERCE']);
+        (new \Transbank\Telemetry\PluginVersion())->registerVersion($config['COMMERCE_CODE'], $pluginInfo['current_plugin_version'], $pluginInfo['ecommerce_version'], \Transbank\Telemetry\PluginVersion::ECOMMERCE_VIRTUEMART);
     }
 }
