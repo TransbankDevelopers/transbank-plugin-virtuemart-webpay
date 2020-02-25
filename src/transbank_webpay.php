@@ -81,12 +81,6 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
             }
         }
     }
-    
-    public function plgVmOnBeforeUserfieldSave( $plgName , &$data, &$field )
-    {
-        field
-        die('hola');
-    }
 
     /**
      * Create the table for this plugin if it does not yet exist.
@@ -402,6 +396,10 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
 	 * @Override
 	 */
 	function plgVmOnStoreInstallPaymentPluginTable($jplugin_id) {
+        $config = $this->getAllConfig();
+        if($config["MODO"] === "PRODUCCION"){
+            $this->sendPluginVersion();
+        }
 		return $this->onStoreInstallPluginTable($jplugin_id);
 	}
 
