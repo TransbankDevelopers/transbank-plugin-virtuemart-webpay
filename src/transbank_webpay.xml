@@ -49,7 +49,7 @@ NrGTVGeK/rE6utA/DPlP0H2EgkUAzt8x3N0MuVoBl/Ow7y5sqIQKfEI7h0aRdXH5&#13;&#10;
 ecefOL6iiJWQqX2+237NOd0fJ4E1+BCMu/+HnyCX+cFM2FgoE6tC&#13;&#10;
 -----END RSA PRIVATE KEY-----" />
 
-                <field name="cert_public" type="textarea" rows="5" cols="100" label="Certificado publico"
+                <field name="cert_public" type="textarea" rows="5" cols="100" label="Certificado público"
                 default="-----BEGIN CERTIFICATE-----&#13;&#10;
 MIIDeDCCAmACCQDjtGVIe/aeCTANBgkqhkiG9w0BAQsFADB+MQswCQYDVQQGEwJj&#13;&#10;
 bDENMAsGA1UECAwEc3RnbzENMAsGA1UEBwwEc3RnbzEMMAoGA1UECgwDdGJrMQ0w&#13;&#10;
@@ -98,7 +98,7 @@ R48O6P0ZpWLlZwScyqDWcsg/4wNCL5Kaa5VgM03SKM6XoWTzkT7p0t0FPZVoGCyG&#13;&#10;
 MX5lzVXafBH/sPd545fBH2J3xAY3jtP764G4M8JayOFzGB0=&#13;&#10;
 -----END CERTIFICATE-----" />
 
-                <field type="vmtitle" description="" default="Estados de la orde" />
+                <field type="vmtitle" description="" default="Estados de la orden" />
 
                 <field name="status_success" type="vmorderstate" scope="com_virtuemart" default="C" label="Orden pagada" />
                 <field name="status_canceled" type="vmorderstate" scope="com_virtuemart" default="D" label="Orden fallida" />

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+./config.sh
 
 #Script for create the plugin artifact
 echo "Travis tag: $TRAVIS_TAG"
