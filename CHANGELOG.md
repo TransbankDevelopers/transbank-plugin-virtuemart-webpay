@@ -4,6 +4,14 @@ Todos los cambios notables a este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 y este proyecto adhiere a [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2019-02-25
+### Added
+- Agrega métricas de uso cuando se pasa a producción en la configuración del plugin [#16](https://github.com/TransbankDevelopers/transbank-plugin-virtuemart-webpay/pull/16)
+- Agregar instrucciones de implementación de producción [#15](https://github.com/TransbankDevelopers/transbank-plugin-virtuemart-webpay/pull/15)
+- Agregar plantilla de problemas y/o errores [#13](https://github.com/TransbankDevelopers/transbank-plugin-virtuemart-webpay/pull/13)
+### Changed
+- Actualizar la implementación de travis api_key [#14](https://github.com/TransbankDevelopers/transbank-plugin-virtuemart-webpay/pull/14)
+
 ## [2.0.9] - 2019-04-04
 ### Fixed
 - Corrige despliegue de información en el detalle de la transacción realizada, ahora se visualiza toda la información
