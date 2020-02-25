@@ -75,7 +75,6 @@ class plgVmPaymentTransbank_Webpay extends vmPSPlugin {
             } else if (isset($_GET['updateConfig'])) {
                 $this->updateConfig();
                 $this->sendPluginVersion();
-                print_r($this->getAllConfig(), true);
             } else if (isset($_GET['checkTransaction'])) {
                 $this->checkTransaction();
             }
