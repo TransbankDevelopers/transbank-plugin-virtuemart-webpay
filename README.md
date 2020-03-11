@@ -13,7 +13,7 @@ Este plugin **oficial** de Transbank te permite integrar Webpay fácilmente en t
 
 ### ¿Cómo instalar?
 Puedes ver las instrucciones de instalación y su documentación completa en [transbankdevelopers.cl/plugin/virtuemart/](https://www.transbankdevelopers.cl/plugin/virtuemart/)
-Adiconalmente, existe un manual de instalación para el usuario final [acá](docs/INSTALLATION.md) o en PDF [acá](https://github.com/TransbankDevelopers/transbank-plugin-virtuemart-webpay/raw/master/docs/INSTALLATION.pdf
+Adicionalmente, existe un manual de instalación para el usuario final [acá](docs/INSTALLATION.md) o en PDF [acá](https://github.com/TransbankDevelopers/transbank-plugin-virtuemart-webpay/raw/master/docs/INSTALLATION.pdf)
 
 
 ### Paso a producción
